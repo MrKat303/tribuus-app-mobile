@@ -1,76 +1,76 @@
-## Resumen
+## Summary
 
-<!-- Describe el cambio en términos de comportamiento y resultado. -->
+<!-- Describe the user-visible behavior and outcome of this change. -->
 
-## Contexto y problema
+## Context and problem
 
-- **Problema u oportunidad:**
-- **Usuario o flujo afectado:**
-- **Issue, ticket o referencia:**
+- **Problem or opportunity:**
+- **Affected user or workflow:**
+- **Issue, ticket, or reference:**
 
-## Alcance
+## Scope
 
-### Incluido
+### Included
 -
 
-### Fuera de alcance
+### Out of scope
 -
 
-## Implementación técnica
+## Technical implementation
 
-- **Módulos, rutas y componentes afectados:**
-- **Flujo de datos antes/después:**
-- **Decisiones de arquitectura y alternativas consideradas:**
-- **Contratos, tipos, estado o comportamiento de dominio modificados:**
-- **Compatibilidad iOS / Android / web:**
+- **Affected modules, routes, and components:**
+- **Data flow before and after:**
+- **Architecture decisions and alternatives considered:**
+- **Changed contracts, types, state, or domain behavior:**
+- **iOS / Android / web compatibility:**
 
-<!-- Incluye nombres de archivos, funciones, hooks, providers o servicios. Explica por qué se eligió este diseño. -->
+<!-- Name relevant files, functions, hooks, providers, and services. Explain why this design was chosen. -->
 
-## Datos, backend y seguridad
+## Data, backend, and security
 
-- **APIs, servicios o dependencias externas:**
-- **Cambios de esquema o migraciones:**
-- **Autenticación, autorización y RLS:**
-- **Variables de entorno nuevas/modificadas:**
-- **Permisos de dispositivo y tratamiento de datos personales:**
-- [ ] Revisé el diff: no hay secretos, tokens privados ni claves `service_role`.
+- **APIs, services, or external dependencies:**
+- **Schema changes or migrations:**
+- **Authentication, authorization, and RLS:**
+- **New or changed environment variables:**
+- **Device permissions and personal data handling:**
+- [ ] I reviewed the diff for secrets, private tokens, and `service_role` keys.
 
-<!-- Si algo no aplica, escribe N/A y explica brevemente. Nunca pegues valores secretos aquí. -->
+<!-- If a field does not apply, write N/A and briefly explain. Never include secret values here. -->
 
-## Interfaz y experiencia
+## UI and user experience
 
-- **Cambios de interfaz:**
-- **Estados de carga, vacío y error:**
-- **Accesibilidad y navegación por lector de pantalla:**
-- **Capturas o video (Android/iOS/web):**
+- **UI changes:**
+- **Loading, empty, and error states:**
+- **Accessibility and screen reader navigation:**
+- **Screenshots or video (Android/iOS/web):**
 
-## Validación
+## Validation
 
-| Comprobación | Resultado / evidencia |
+| Check | Result / evidence |
 | --- | --- |
 | `npm run lint` | |
 | `npm run typecheck` | |
 | `npm run test` | |
-| Flujo manual en Android | |
-| Flujo manual en iOS | |
-| Flujo manual en web (si aplica) | |
-| EAS build / configuración nativa (si aplica) | |
+| Manual flow on Android | |
+| Manual flow on iOS | |
+| Manual flow on web (if applicable) | |
+| EAS build / native configuration (if applicable) | |
 
-<!-- Si no ejecutaste una comprobación, indica por qué y qué riesgo queda. -->
+<!-- If a check was not run, explain why and describe the remaining risk. -->
 
-## Riesgos y despliegue
+## Risks and deployment
 
-- **Riesgos conocidos o casos límite:**
-- **Feature flags o configuración requerida:**
-- **Pasos de despliegue / migración:**
-- **Plan de reversión:**
+- **Known risks or edge cases:**
+- **Required feature flags or configuration:**
+- **Deployment or migration steps:**
+- **Rollback plan:**
 
-## Lista de revisión
+## Reviewer checklist
 
-- [ ] El PR tiene un alcance claro y no incluye cambios accidentales.
-- [ ] Añadí o actualicé pruebas para la lógica modificada.
-- [ ] Actualicé documentación y variables de ejemplo cuando corresponde.
-- [ ] Mantuve `package-lock.json` sincronizado si cambié dependencias.
-- [ ] Probé los estados de error, carga y vacío relevantes.
-- [ ] Revisé permisos, accesibilidad y diferencias entre plataformas.
-- [ ] Confirmé que no incluí archivos locales, configuraciones de agentes ni credenciales.
+- [ ] The PR has a clear scope and contains no unrelated changes.
+- [ ] I added or updated tests for changed logic.
+- [ ] I updated documentation and example environment variables where needed.
+- [ ] I kept `package-lock.json` in sync if dependencies changed.
+- [ ] I checked relevant error, loading, and empty states.
+- [ ] I reviewed permissions, accessibility, and platform differences.
+- [ ] I did not include local files, agent configuration, or credentials.
