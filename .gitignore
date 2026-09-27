@@ -1,0 +1,90 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+node_modules.pnpm-backup/
+.pnpm-store/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env
+.env.*
+!.env.example
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# tests
+coverage/
+
+example
+
+# generated native folders
+/ios
+/android
+
+# Instrucciones y configuración local de agentes (no subir a GitHub)
+AGENTS.md
+**/AGENTS.md
+agents.md
+**/agents.md
+CLAUDE.md
+**/CLAUDE.md
+claude.md
+**/claude.md
+GEMINI.md
+**/GEMINI.md
+CODEX.md
+**/CODEX.md
+copilot-instructions.md
+**/copilot-instructions.md
+.agents/
+**/.agents/
+.claude/
+**/.claude/
+.codex/
+**/.codex/
+.cursor/
+**/.cursor/
+.windsurf/
+**/.windsurf/
+
+# Informes y documentación internos (mantener en el equipo local)
+/TECHNICAL_AUDIT*.md
+**/TECHNICAL_AUDIT*.md
+/internal-reports/
+**/internal-reports/
+/reports/internal/
+**/reports/internal/
+**/*_INTERNAL.md
+**/*-internal.md
+
+# Configuración interna de agentes dentro de docs
+/docs/agents/

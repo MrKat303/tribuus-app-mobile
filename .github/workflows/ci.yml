@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: ${{ matrix.check.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - name: ESLint
+            command: npm run lint
+          - name: TypeScript
+            command: npm run typecheck
+          - name: Tests
+            command: npm run test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Use project npm version
+        run: npm install --global npm@11.6.2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ${{ matrix.check.name }}
+        run: ${{ matrix.check.command }}

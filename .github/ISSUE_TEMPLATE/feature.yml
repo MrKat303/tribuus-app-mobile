@@ -1,0 +1,35 @@
+name: Nueva funcionalidad
+description: Propón un cambio de producto con un resultado verificable.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: ¿Qué necesidad de la persona usuaria queremos resolver?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado esperado
+      description: Describe el comportamiento final, sin entrar todavía en la implementación.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Escribe una lista de condiciones observables que deben cumplirse.
+      placeholder: |
+        - [ ] Dado..., cuando..., entonces...
+        - [ ] Dado..., cuando..., entonces...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Diseños, enlaces, decisiones o restricciones relevantes.

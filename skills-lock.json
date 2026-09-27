@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "react-native-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/ui-design/skills/react-native-design/SKILL.md",
+      "computedHash": "36252c3f0750989d040fe6264898145087a1955e1e1a0c95c7902ac7d3cb6ada"
+    }
+  }
+}
