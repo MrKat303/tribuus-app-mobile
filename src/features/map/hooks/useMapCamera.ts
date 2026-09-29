@@ -1,4 +1,4 @@
-import type { Camera } from '@rnmapbox/maps';
+import type { Camera, MapState } from '@rnmapbox/maps';
 import { useCallback, useRef, useState } from 'react';
 
 import {
@@ -7,17 +7,18 @@ import {
   COUNTRY_CAMERA_BOUNDING_BOX,
   COUNTRY_MIN_ZOOM,
   DEFAULT_MAP_ZOOM,
+  type MapViewportBounds,
   SANTIAGO,
 } from '../model/map';
 
 type CameraSettings = Parameters<Camera['setCamera']>[0];
-type CameraChangeState = { properties: { center: number[]; zoom: number } };
-
 export function useMapCamera() {
   const cameraRef = useRef<Camera>(null);
   const mapCenterRef = useRef<Coordinate>(SANTIAGO);
+  const zoomLevelRef = useRef(DEFAULT_MAP_ZOOM);
   const [mapCenter, setMapCenter] = useState<Coordinate>(SANTIAGO);
   const [zoomLevel, setZoomLevel] = useState(DEFAULT_MAP_ZOOM);
+  const [viewportBounds, setViewportBounds] = useState<MapViewportBounds | null>(null);
 
   const moveCamera = useCallback((settings: CameraSettings) => {
     if ('stops' in settings) {
@@ -34,13 +35,38 @@ export function useMapCamera() {
     });
   }, []);
 
-  const handleCameraChanged = useCallback((state: CameraChangeState) => {
+  const updateCameraRefs = useCallback((state: MapState) => {
     const [longitude, latitude] = state.properties.center;
     const coordinate = clampCoordinateToBoundingBox([longitude, latitude], COUNTRY_CAMERA_BOUNDING_BOX);
     mapCenterRef.current = coordinate;
-    setMapCenter(coordinate);
-    setZoomLevel(Math.max(COUNTRY_MIN_ZOOM, state.properties.zoom));
+    zoomLevelRef.current = Math.max(COUNTRY_MIN_ZOOM, state.properties.zoom);
+    return coordinate;
   }, []);
 
-  return { cameraRef, handleCameraChanged, mapCenter, mapCenterRef, moveCamera, zoomLevel };
+  const handleCameraChanged = useCallback((state: MapState) => {
+    // Mapbox emits this event continuously during gestures. Keep the live camera
+    // outside React so panning does not invalidate ranking and clustering.
+    updateCameraRefs(state);
+  }, [updateCameraRefs]);
+
+  const handleMapIdle = useCallback((state: MapState) => {
+    const coordinate = updateCameraRefs(state);
+    setMapCenter(coordinate);
+    setZoomLevel(zoomLevelRef.current);
+    setViewportBounds({
+      ne: state.properties.bounds.ne.slice(0, 2) as Coordinate,
+      sw: state.properties.bounds.sw.slice(0, 2) as Coordinate,
+    });
+  }, [updateCameraRefs]);
+
+  return {
+    cameraRef,
+    handleCameraChanged,
+    handleMapIdle,
+    mapCenter,
+    mapCenterRef,
+    moveCamera,
+    viewportBounds,
+    zoomLevel,
+  };
 }

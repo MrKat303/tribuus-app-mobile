@@ -66,6 +66,7 @@ function AppNavigator() {
           <Stack.Screen name="ajustes/[section]" />
           <Stack.Screen name="notificaciones" />
           <Stack.Screen name="community-wallet" />
+          <Stack.Screen name="community-wallet-analytics" />
         </Stack>
       </PostsProvider></PlacesProvider></ProfileProvider>
       <StatusBar hidden style={isDark ? 'light' : 'dark'} />

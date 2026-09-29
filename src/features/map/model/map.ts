@@ -18,6 +18,7 @@ export const USER_LOCATION_ZOOM = 15.4;
 
 export type Coordinate = [number, number];
 export type BoundingBox = [west: number, south: number, east: number, north: number];
+export type MapViewportBounds = { ne: Coordinate; sw: Coordinate };
 export type EventCategory = 'Café' | 'Restaurante' | 'Bar' | 'Evento' | 'Servicio' | 'Alerta';
 export type MapFilter = 'Todos' | Extract<EventCategory, 'Café' | 'Restaurante' | 'Bar' | 'Evento'>;
 export type AlertKind = 'Lluvia' | 'Incendio' | 'Prevención';
@@ -36,6 +37,21 @@ export type MapEvent = {
   qualityScore: number;
   title: string;
 };
+
+export function isCoordinateInViewport(
+  coordinate: Coordinate,
+  bounds: MapViewportBounds | null,
+  paddingRatio = 0.12,
+) {
+  if (!bounds) return true;
+
+  const longitudePadding = Math.abs(bounds.ne[0] - bounds.sw[0]) * paddingRatio;
+  const latitudePadding = Math.abs(bounds.ne[1] - bounds.sw[1]) * paddingRatio;
+  return coordinate[0] >= bounds.sw[0] - longitudePadding
+    && coordinate[0] <= bounds.ne[0] + longitudePadding
+    && coordinate[1] >= bounds.sw[1] - latitudePadding
+    && coordinate[1] <= bounds.ne[1] + latitudePadding;
+}
 
 type IconName = ComponentProps<typeof AppIcon>['name'];
 

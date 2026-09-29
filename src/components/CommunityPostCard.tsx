@@ -1,8 +1,9 @@
 import Feather from '@/components/ui/AppIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useRecyclingState } from '@shopify/flash-list';
 import { Image } from 'expo-image';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Alert, Platform, Pressable, Share, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -35,10 +36,12 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
   const styles = useStyles();
   const { addComment, selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = usePosts();
   const audioPlayerRef = useRef<import('expo-audio').AudioPlayer | null>(null);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [isCommenting, setIsCommenting] = useState(false);
-  const [commentDraft, setCommentDraft] = useState('');
+  const visiblePostIdRef = useRef(post.id);
+  visiblePostIdRef.current = post.id;
+  const [isAudioPlaying, setIsAudioPlaying] = useRecyclingState(false, [post.id]);
+  const [showComments, setShowComments] = useRecyclingState(false, [post.id]);
+  const [isCommenting, setIsCommenting] = useRecyclingState(false, [post.id]);
+  const [commentDraft, setCommentDraft] = useRecyclingState('', [post.id]);
   const likeScale = useSharedValue(1);
   const saveScale = useSharedValue(1);
 
@@ -55,8 +58,13 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
   const selectedPollOption = post.selectedPollOptionId;
   const likeCount = post.likes;
   const postCategory = categoryStyle[post.category];
+  const feedImageUri = post.imageVariants?.feed.uri ?? post.imageUri;
+  const thumbnailUri = post.imageVariants?.thumbnail.uri;
 
-  useEffect(() => () => audioPlayerRef.current?.release(), []);
+  useEffect(() => () => {
+    audioPlayerRef.current?.release();
+    audioPlayerRef.current = null;
+  }, [post.id]);
 
   function toggleLike() {
     togglePostLike(post.id);
@@ -94,7 +102,9 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
         setIsAudioPlaying((current) => !current);
         return;
       }
+      const audioPostId = post.id;
       const { createAudioPlayer } = await import('expo-audio');
+      if (visiblePostIdRef.current !== audioPostId) return;
       audioPlayerRef.current = createAudioPlayer(post.audioUri ?? null);
       audioPlayerRef.current.play();
       setIsAudioPlaying(true);
@@ -131,9 +141,18 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
       {post.title ? <AppText style={[styles.postTitle]} variant="bodyStrong">{post.title}</AppText> : null}
       {post.content ? <AppText style={[styles.postContent, { color: themeColors.text }]}>{post.content}</AppText> : null}
 
-      {post.imageUri ? (
+      {feedImageUri ? (
         <View style={[styles.media]}>
-          <Image contentFit="cover" source={{ uri: post.imageUri }} style={[styles.postImage]} transition={180} />
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            placeholder={thumbnailUri ? { uri: thumbnailUri } : undefined}
+            placeholderContentFit="cover"
+            recyclingKey={post.id}
+            source={{ uri: feedImageUri }}
+            style={[styles.postImage]}
+            transition={180}
+          />
           <View style={[styles.mediaLocation, { backgroundColor: isDark ? 'rgba(20,27,23,0.88)' : 'rgba(255,255,255,0.88)' }]}><Feather color={themeColors.text} name="map-pin" size={12} /><AppText numberOfLines={1} style={[styles.mediaLocationText, { color: themeColors.text }]} variant="caption">{post.location ?? 'Providencia'}</AppText></View>
         </View>
       ) : null}
