@@ -1,6 +1,7 @@
+import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommunityPostCard } from '@/components/CommunityPostCard';
@@ -37,9 +38,15 @@ export function FeedScreen() {
     addPost(draft);
     setActiveFilter('todo');
   }, [addPost]);
-  const renderPost = useCallback(({ item }: { item: CommunityPost }) => (
+  const renderPost = useCallback(({ item }: ListRenderItemInfo<CommunityPost>) => (
     <View style={styles.post}><CommunityPostCard post={item} /></View>
   ), [styles.post]);
+  const getPostType = useCallback((post: CommunityPost) => {
+    if (post.imageVariants || post.imageUri) return 'image';
+    if (post.poll) return 'poll';
+    if (post.audioUri) return 'audio';
+    return 'text';
+  }, []);
 
   const header = useMemo(() => (
     <FeedHeader
@@ -50,7 +57,7 @@ export function FeedScreen() {
       onOpenProfile={openProfile}
       onOpenWallet={openWallet}
     />
-  ), [activeFilter, createPost, openNotifications, openProfile]);
+  ), [activeFilter, createPost, openNotifications, openProfile, openWallet]);
 
   const empty = useMemo(() => (
     <View style={styles.emptyState}>
@@ -62,22 +69,21 @@ export function FeedScreen() {
 
   return (
     <Screen>
-      <FlatList
+      <FlashList
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 12) + 92 }]}
         data={visiblePosts}
-        initialNumToRender={6}
+        drawDistance={900}
+        getItemType={getPostType}
         ItemSeparatorComponent={PostSeparator}
         keyboardShouldPersistTaps="handled"
         keyExtractor={(post) => post.id}
         ListEmptyComponent={empty}
         ListHeaderComponent={header}
-        maxToRenderPerBatch={6}
-        removeClippedSubviews={false}
+        maxItemsInRecyclePool={24}
+        removeClippedSubviews={Platform.OS === 'android'}
         renderItem={renderPost}
         showsVerticalScrollIndicator={false}
         style={styles.list}
-        updateCellsBatchingPeriod={50}
-        windowSize={7}
       />
     </Screen>
   );

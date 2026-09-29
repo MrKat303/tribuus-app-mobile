@@ -6,10 +6,11 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
-import type { CommunityPostCategory, CommunityPostDraft } from '@/types/community';
+import { createPostImageVariants } from '@/features/feed/media/createPostImageVariants';
+import type { CommunityPostCategory, CommunityPostDraft, CommunityPostImageVariants } from '@/types/community';
 
 export const POST_CONTENT_LIMIT = 350;
 export const MAX_POLL_OPTIONS = 4;
@@ -20,9 +21,12 @@ const recordingOptions = { ...RecordingPresets.HIGH_QUALITY, directory: 'documen
 export function usePostComposer() {
   const audioRecorder = useAudioRecorder(recordingOptions);
   const recorderState = useAudioRecorderState(audioRecorder, 250);
+  const imageRequestId = useRef(0);
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<CommunityPostCategory>('comunidad');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUri, setImageUriState] = useState<string | null>(null);
+  const [imageVariants, setImageVariants] = useState<CommunityPostImageVariants | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [audioName, setAudioName] = useState<string | null>(null);
   const [pollEnabled, setPollEnabled] = useState(false);
@@ -38,7 +42,7 @@ export function usePostComposer() {
   const hasEvent = eventEnabled && Boolean(eventTitle.trim() && eventDate.trim() && eventLocation.trim());
   const isRecording = recorderState.isRecording;
   const recordingMillis = recorderState.durationMillis;
-  const canPublish = !isRecording && Boolean(content.trim() || imageUri || audioUri || hasPoll || hasEvent);
+  const canPublish = !isRecording && !isProcessingImage && Boolean(content.trim() || imageUri || audioUri || hasPoll || hasEvent);
 
   const restorePlaybackMode = useCallback(async () => {
     try {
@@ -56,14 +60,18 @@ export function usePostComposer() {
   }, [audioRecorder, restorePlaybackMode]);
 
   useEffect(() => () => {
+    imageRequestId.current += 1;
     if (audioRecorder.isRecording) void audioRecorder.stop();
     void restorePlaybackMode();
   }, [audioRecorder, restorePlaybackMode]);
 
   const reset = useCallback(() => {
+    imageRequestId.current += 1;
     setContent('');
     setCategory('comunidad');
-    setImageUri(null);
+    setImageUriState(null);
+    setImageVariants(null);
+    setIsProcessingImage(false);
     setAudioUri(null);
     setAudioName(null);
     setPollEnabled(false);
@@ -88,10 +96,42 @@ export function usePostComposer() {
         mediaTypes: ['images'],
         quality: 0.85,
       });
-      if (!result.canceled) setImageUri(result.assets[0].uri);
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      const requestId = ++imageRequestId.current;
+      setImageUriState(asset.uri);
+      setImageVariants(null);
+      setIsProcessingImage(true);
+      try {
+        const variants = await createPostImageVariants({
+          height: asset.height,
+          uri: asset.uri,
+          width: asset.width,
+        });
+        if (imageRequestId.current === requestId) {
+          setImageVariants(variants);
+          setImageUriState(variants.feed.uri);
+        }
+      } catch {
+        if (imageRequestId.current === requestId) {
+          setImageVariants(null);
+          setImageUriState(asset.uri);
+          Alert.alert('Imagen sin optimizar', 'La foto se adjuntó, pero no se pudieron crear sus versiones optimizadas.');
+        }
+      } finally {
+        if (imageRequestId.current === requestId) setIsProcessingImage(false);
+      }
     } catch {
       Alert.alert('Galería no disponible', 'Recompila la app para incluir el selector de imágenes en el development build.');
     }
+  }, []);
+
+  const setImageUri = useCallback((uri: string | null) => {
+    imageRequestId.current += 1;
+    setImageUriState(uri);
+    setIsProcessingImage(false);
+    if (!uri) setImageVariants(null);
   }, []);
 
   const toggleRecording = useCallback(async () => {
@@ -155,6 +195,7 @@ export function usePostComposer() {
       content: eventEnabled
         ? [`📅 ${eventDate.trim()}`, content.trim()].filter(Boolean).join('\n')
         : content.trim(),
+      imageVariants: imageVariants ?? undefined,
       imageUri: imageUri ?? undefined,
       location: eventEnabled ? eventLocation.trim() : undefined,
       poll: hasPoll ? {
@@ -165,11 +206,11 @@ export function usePostComposer() {
     });
     reset();
     return true;
-  }, [audioName, audioUri, canPublish, category, content, eventDate, eventEnabled, eventLocation, eventTitle, hasEvent, hasPoll, imageUri, pollEnabled, pollQuestion, reset, validPollOptions]);
+  }, [audioName, audioUri, canPublish, category, content, eventDate, eventEnabled, eventLocation, eventTitle, hasEvent, hasPoll, imageUri, imageVariants, pollEnabled, pollQuestion, reset, validPollOptions]);
 
   return {
     addPollOption, audioName, audioUri, canPublish, category, content, discard,
-    eventDate, eventEnabled, eventLocation, eventTitle, imageUri, isRecording,
+    eventDate, eventEnabled, eventLocation, eventTitle, imageUri, isProcessingImage, isRecording,
     pickImage, pollEnabled, pollOptions, pollQuestion, recordingMillis, removeAudio,
     removePollOption, reset, setCategory, setContent, setEventDate, setEventEnabled,
     setEventLocation, setEventTitle, setImageUri, setPollEnabled, setPollQuestion,

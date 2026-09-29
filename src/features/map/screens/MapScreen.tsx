@@ -17,7 +17,7 @@ import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 
 import { MapFilters } from '../components/MapFilters';
-import { MapMarkers } from '../components/MapMarkers';
+import { MapLayers } from '../components/MapLayers';
 import { MapSearch } from '../components/MapSearch';
 import { useMapCamera } from '../hooks/useMapCamera';
 import { useMapSearch } from '../hooks/useMapSearch';
@@ -34,6 +34,7 @@ import {
   FRIENDS_NEARBY,
   iconForEvent,
   INITIAL_EVENTS,
+  isCoordinateInViewport,
   MAPBOX_TOKEN,
   type MapEvent,
   type EventCategory,
@@ -66,7 +67,7 @@ export function MapScreen() {
   const bottomNavigationOffset = Math.max(insets.bottom, 12) + 80;
   const nearbySheetOffset = bottomNavigationOffset + 12;
   const mapCreditsOffset = Math.max(insets.bottom, 12) + 4;
-  const { cameraRef, handleCameraChanged, mapCenter, mapCenterRef, moveCamera, zoomLevel } = useMapCamera();
+  const { cameraRef, handleCameraChanged, handleMapIdle, mapCenter, mapCenterRef, moveCamera, viewportBounds, zoomLevel } = useMapCamera();
   const { locateUser, locationGranted, userCoordinate } = useUserLocation(moveCamera);
   const [activeFilter, setActiveFilter] = useState<MapFilter>('Todos');
   const getSearchProximity = useCallback(() => userCoordinate ?? mapCenterRef.current, [mapCenterRef, userCoordinate]);
@@ -82,8 +83,9 @@ export function MapScreen() {
   } = useMapSearch({ categories: mapboxCategories[activeFilter], getProximity: getSearchProximity, moveCamera });
   const socialPlaces = useMemo(() => places
     .filter((place) => place.status === 'active' && place.recommendations.length > 0)
+    .filter((place) => isCoordinateInViewport(place.providerData.coordinate, viewportBounds))
     .sort((first, second) => placeRankingScore(second, mapCenter) - placeRankingScore(first, mapCenter))
-    .slice(0, placeVisualBudget(zoomLevel)), [mapCenter, places, zoomLevel]);
+    .slice(0, placeVisualBudget(zoomLevel)), [mapCenter, places, viewportBounds, zoomLevel]);
   const events = useMemo(() => [
     ...INITIAL_EVENTS.filter((event) => event.category !== 'Café' && event.category !== 'Restaurante' && event.category !== 'Bar'),
     ...socialPlaces.map(placeAsMapEvent),
@@ -117,6 +119,7 @@ export function MapScreen() {
   const visibleEvents = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase('es');
     return events
+      .filter((event) => isCoordinateInViewport(event.coordinate, viewportBounds))
       .filter((event) => {
         const matchesFilter = activeFilter === 'Todos' || event.category === activeFilter;
         const searchableText = `${event.title} ${event.location} ${event.category}`.toLocaleLowerCase('es');
@@ -124,7 +127,7 @@ export function MapScreen() {
       })
       .sort((first, second) => mapRelevanceScore(second, { exploredCenter: mapCenter, userCoordinate })
         - mapRelevanceScore(first, { exploredCenter: mapCenter, userCoordinate }));
-  }, [activeFilter, events, mapCenter, searchQuery, userCoordinate]);
+  }, [activeFilter, events, mapCenter, searchQuery, userCoordinate, viewportBounds]);
 
   const displayedEvent = visibleEvents.find((event) => event.id === selectedEvent.id) ?? visibleEvents[0];
   const { clusters: communityClusters, markerEvents } = useMemo(() => {
@@ -199,6 +202,7 @@ export function MapScreen() {
         logoEnabled
         logoPosition={{ bottom: mapCreditsOffset, left: 8 }}
         onCameraChanged={handleCameraChanged}
+        onMapIdle={handleMapIdle}
         projection="mercator"
         rotateEnabled={false}
         scaleBarEnabled={false}
@@ -211,7 +215,7 @@ export function MapScreen() {
           minZoomLevel={COUNTRY_MIN_ZOOM}
         />
         {locationGranted && Platform.OS !== 'web' ? <LocationPuck pulsing={{ color: '#00BFF3', isEnabled: true, radius: 24 }} scale={1.2} /> : null}
-        <MapMarkers
+        <MapLayers
           clusters={communityClusters}
           events={markerEvents}
           onSelectCluster={selectCluster}

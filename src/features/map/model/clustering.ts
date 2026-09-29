@@ -38,7 +38,9 @@ export function clusterCommunityPlaces(events: MapEvent[], zoomLevel: number) {
     const longitudeCell = Math.floor(event.coordinate[0] / cellSize);
     const latitudeCell = Math.floor(event.coordinate[1] / cellSize);
     const key = `${longitudeCell}:${latitudeCell}`;
-    groups.set(key, [...(groups.get(key) ?? []), event]);
+    const group = groups.get(key);
+    if (group) group.push(event);
+    else groups.set(key, [event]);
   });
 
   const clusters: CommunityCluster[] = [];
