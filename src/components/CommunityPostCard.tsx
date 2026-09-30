@@ -2,11 +2,17 @@ import Feather from '@/components/ui/AppIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRecyclingState } from '@shopify/flash-list';
-import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { memo, useEffect, useRef } from 'react';
 import { Alert, Platform, Pressable, Share, StyleSheet, View } from 'react-native';
 import Animated, {
+  FadeIn,
+  FadeInUp,
+  FadeOutUp,
+  LinearTransition,
+  ZoomInDown,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
@@ -14,6 +20,7 @@ import Animated, {
 import { useAppAppearance } from '@/context/AppearanceContext';
 import { usePosts } from '@/context/PostsContext';
 import { PostComments } from '@/features/feed/components/PostComments';
+import { PostMediaGrid } from '@/features/feed/components/PostMediaGrid';
 import { PostPoll } from '@/features/feed/components/PostPoll';
 import type { CommunityPost, CommunityPostCategory } from '@/types/community';
 import { makeThemedStyles } from '@/theme/themedStyles';
@@ -22,6 +29,7 @@ import { radii, spacing, typography } from '@/theme/tokens';
 import { AppText } from './ui/AppText';
 
 type CommunityPostCardProps = {
+  isNew?: boolean;
   post: CommunityPost;
 };
 
@@ -31,17 +39,16 @@ const categoryStyle: Record<CommunityPostCategory, { background: string; border:
   recomendación: { background: '#FFF1DB', border: '#F2DFC0', color: '#B06B19', icon: 'star', label: 'Recomendación', surface: '#FFFEFA' },
 };
 
-export const CommunityPostCard = memo(function CommunityPostCard({ post }: CommunityPostCardProps) {
+export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false, post }: CommunityPostCardProps) {
   const { colors: themeColors, isDark } = useAppAppearance();
   const styles = useStyles();
-  const { addComment, selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = usePosts();
+  const router = useRouter();
+  const reduceMotion = useReducedMotion();
+  const { selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = usePosts();
   const audioPlayerRef = useRef<import('expo-audio').AudioPlayer | null>(null);
   const visiblePostIdRef = useRef(post.id);
   visiblePostIdRef.current = post.id;
   const [isAudioPlaying, setIsAudioPlaying] = useRecyclingState(false, [post.id]);
-  const [showComments, setShowComments] = useRecyclingState(false, [post.id]);
-  const [isCommenting, setIsCommenting] = useRecyclingState(false, [post.id]);
-  const [commentDraft, setCommentDraft] = useRecyclingState('', [post.id]);
   const likeScale = useSharedValue(1);
   const saveScale = useSharedValue(1);
 
@@ -59,7 +66,16 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
   const likeCount = post.likes;
   const postCategory = categoryStyle[post.category];
   const feedImageUri = post.imageVariants?.feed.uri ?? post.imageUri;
-  const thumbnailUri = post.imageVariants?.thumbnail.uri;
+  const mediaImages = post.images?.length
+    ? post.images
+    : feedImageUri
+      ? [{ id: `${post.id}-legacy-image`, uri: feedImageUri, variants: post.imageVariants }]
+      : [];
+  const postEntrance = isNew
+    ? reduceMotion
+      ? FadeIn.duration(180)
+      : ZoomInDown.springify().damping(26).withInitialValues({ transform: [{ translateY: -24 }, { scale: 0.98 }] })
+    : undefined;
 
   useEffect(() => () => {
     audioPlayerRef.current?.release();
@@ -80,14 +96,8 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
     }));
   }
 
-  function submitComment() {
-    const content = commentDraft.trim();
-    if (!content) return;
-
-    addComment(post.id, content);
-    setCommentDraft('');
-    setShowComments(true);
-    setIsCommenting(false);
+  function openComments() {
+    router.push({ pathname: '/comments/[postId]', params: { postId: post.id } });
   }
 
   async function sharePost() {
@@ -114,7 +124,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
   }
 
   return (
-    <View style={[styles.post, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+    <Animated.View entering={postEntrance} layout={LinearTransition.duration(240)} style={[styles.post, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
       <View style={styles.authorRow}>
         <View style={[styles.avatar, { backgroundColor: themeColors.successSoft }]}>
           <AppText style={[styles.avatarText, { color: themeColors.text }]} variant="caption">{post.initials}</AppText>
@@ -141,18 +151,9 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
       {post.title ? <AppText style={[styles.postTitle]} variant="bodyStrong">{post.title}</AppText> : null}
       {post.content ? <AppText style={[styles.postContent, { color: themeColors.text }]}>{post.content}</AppText> : null}
 
-      {feedImageUri ? (
+      {mediaImages.length ? (
         <View style={[styles.media]}>
-          <Image
-            cachePolicy="memory-disk"
-            contentFit="cover"
-            placeholder={thumbnailUri ? { uri: thumbnailUri } : undefined}
-            placeholderContentFit="cover"
-            recyclingKey={post.id}
-            source={{ uri: feedImageUri }}
-            style={[styles.postImage]}
-            transition={180}
-          />
+          <PostMediaGrid images={mediaImages} recyclingKey={post.id} />
           <View style={[styles.mediaLocation, { backgroundColor: isDark ? 'rgba(20,27,23,0.88)' : 'rgba(255,255,255,0.88)' }]}><Feather color={themeColors.text} name="map-pin" size={12} /><AppText numberOfLines={1} style={[styles.mediaLocationText, { color: themeColors.text }]} variant="caption">{post.location ?? 'Providencia'}</AppText></View>
         </View>
       ) : null}
@@ -187,10 +188,14 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
         <Pressable
           accessibilityLabel="Escribir un comentario"
           accessibilityRole="button"
-          onPress={() => { setShowComments(true); setIsCommenting((current) => !current); }}
+          onPress={openComments}
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
           <Feather color={themeColors.textMuted} name="message-circle" size={17} />
-          <AppText style={styles.actionLabel} variant="caption">{comments.length}</AppText>
+          <View style={styles.countViewport}>
+            <Animated.View entering={reduceMotion ? FadeIn.duration(120) : FadeInUp.duration(180)} exiting={FadeOutUp.duration(120)} key={comments.length}>
+              <AppText style={styles.actionLabel} variant="caption">{comments.length}</AppText>
+            </Animated.View>
+          </View>
         </Pressable>
         <Pressable
           accessibilityLabel="Compartir publicación"
@@ -214,15 +219,16 @@ export const CommunityPostCard = memo(function CommunityPostCard({ post }: Commu
         </Pressable>
       </View>
 
-      <PostComments
-        commentDraft={commentDraft}
-        comments={comments}
-        isCommenting={isCommenting}
-        onChangeDraft={setCommentDraft}
-        onSubmit={submitComment}
-        showComments={showComments}
-      />
-    </View>
+      <PostComments comments={comments} />
+
+      {comments.length > 2 ? (
+        <Pressable accessibilityRole="button" onPress={openComments} style={({ pressed }) => [styles.commentsToggle, pressed && styles.pressed]}>
+          <AppText style={styles.commentsToggleText} variant="caption">
+            Ver los {comments.length} comentarios
+          </AppText>
+        </Pressable>
+      ) : null}
+    </Animated.View>
   );
 });
 
@@ -242,7 +248,6 @@ const useStyles = makeThemedStyles((colors) => ({
   postTitle: { fontFamily: Platform.select({ ios: 'System', default: typography.bodySemiBold }), fontSize: 15, fontWeight: '600', lineHeight: 20, marginTop: 13 },
   postContent: { color: colors.text, fontFamily: Platform.select({ ios: 'System', default: typography.body }), fontSize: 14, lineHeight: 20, marginTop: 5 },
   media: { marginTop: 12, position: 'relative' },
-  postImage: { aspectRatio: 4 / 3, borderRadius: 14, width: '100%' },
   mediaLocation: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.88)', borderRadius: radii.pill, bottom: 10, flexDirection: 'row', gap: 4, left: 10, maxWidth: '76%', minHeight: 29, paddingHorizontal: 10, position: 'absolute' },
   mediaLocationText: { color: colors.text, fontFamily: typography.bodyMedium, fontSize: 9 },
   audioPlayer: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radii.sm, flexDirection: 'row', gap: spacing.md, marginHorizontal: 10, marginTop: 10, minHeight: 60, padding: spacing.md },
@@ -256,7 +261,10 @@ const useStyles = makeThemedStyles((colors) => ({
   actionLiked: { backgroundColor: 'transparent' },
   actionLabel: { color: colors.textMuted, fontFamily: Platform.select({ ios: 'System', default: typography.bodyMedium }), fontWeight: '500' },
   actionLabelLiked: { color: colors.danger, fontFamily: Platform.select({ ios: 'System', default: typography.bodySemiBold }), fontWeight: '600' },
+  countViewport: { alignItems: 'center', height: 20, justifyContent: 'center', minWidth: 12, overflow: 'hidden' },
   shareLabel: { color: colors.textMuted, fontFamily: typography.bodyMedium, fontSize: 10 },
   actionSpacer: { flex: 1 },
+  commentsToggle: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 3, minHeight: 36, paddingHorizontal: 3 },
+  commentsToggleText: { color: colors.textMuted, fontFamily: typography.bodyMedium, fontSize: 11 },
   pressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
 }));

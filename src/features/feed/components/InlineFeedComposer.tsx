@@ -1,6 +1,7 @@
-import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import { memo, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
@@ -10,7 +11,10 @@ import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 import type { CommunityPostDraft } from '@/types/community';
 
+import { PostMediaGrid } from './PostMediaGrid';
+
 export type InlinePostDraft = CommunityPostDraft;
+type PublishPhase = 'idle' | 'publishing' | 'success';
 
 type InlineFeedComposerProps = {
   onCreatePost: (draft: InlinePostDraft) => void;
@@ -19,14 +23,22 @@ type InlineFeedComposerProps = {
 export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePost }: InlineFeedComposerProps) {
   const { colors: themeColors } = useAppAppearance();
   const styles = useStyles();
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
+  const [publishPhase, setPublishPhase] = useState<PublishPhase>('idle');
+  const composerOpacity = useSharedValue(1);
+  const composerScale = useSharedValue(1);
   const {
     audioName, audioUri, canPublish, content, discard, eventDate, eventEnabled,
-    eventLocation, eventTitle, imageUri, isRecording, pickImage, pollEnabled,
-    pollOptions, pollQuestion, recordingMillis, removeAudio, setContent,
-    setEventDate, setEventEnabled, setEventLocation, setEventTitle, setImageUri,
+    eventLocation, eventTitle, images, imageUri, isRecording, pickImage, pollEnabled,
+    pollOptions, pollQuestion, recordingMillis, removeAudio, removeImage, setContent,
+    setEventDate, setEventEnabled, setEventLocation, setEventTitle,
     setPollEnabled, setPollQuestion, submit, toggleRecording, updatePollOption,
   } = usePostComposer();
+  const composerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: composerOpacity.get(),
+    transform: [{ scale: composerScale.get() }],
+  }));
 
   async function closeComposer() {
     await discard();
@@ -34,24 +46,41 @@ export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePos
     Keyboard.dismiss();
   }
 
-  function publish() {
+  async function publish() {
+    if (!canPublish || publishPhase !== 'idle') return;
+
+    setPublishPhase('publishing');
+    if (!reduceMotion) composerScale.set(withTiming(0.98, { duration: 180 }));
+    composerOpacity.set(withTiming(0.88, { duration: 180 }));
+    await new Promise((resolve) => setTimeout(resolve, 230));
+
+    setPublishPhase('success');
+    composerOpacity.set(withTiming(1, { duration: 140 }));
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 420));
+
+    composerOpacity.set(withTiming(0, { duration: 160 }));
+    await new Promise((resolve) => setTimeout(resolve, 165));
     if (submit(onCreatePost)) {
       setOpen(false);
       Keyboard.dismiss();
     }
+    setPublishPhase('idle');
+    composerScale.set(1);
+    composerOpacity.set(1);
   }
 
   return (
-    <View style={[styles.composer, { backgroundColor: themeColors.surface, borderColor: open ? themeColors.primarySoft : themeColors.border }, open && styles.composerOpen]}>
+    <Animated.View pointerEvents={publishPhase === 'idle' ? 'auto' : 'none'} style={[styles.composer, { backgroundColor: themeColors.surface, borderColor: open ? themeColors.primarySoft : themeColors.border }, open && styles.composerOpen, composerAnimatedStyle]}>
       <View style={[styles.inputRow, open && styles.inputRowOpen]}>
         <View style={[styles.avatar, { backgroundColor: themeColors.successSoft }]}><AppText style={[styles.initials, { color: themeColors.text }]} variant="caption">JM</AppText></View>
         <View style={[styles.inputShell, { backgroundColor: themeColors.input }, open && styles.inputShellOpen]}>
           <TextInput accessibilityLabel="Contenido de la publicación" maxLength={POST_CONTENT_LIMIT} multiline onChangeText={setContent} onFocus={() => setOpen(true)} placeholder="Comparte algo con tu comunidad..." placeholderTextColor={themeColors.textMuted} style={[styles.input, { color: themeColors.text }, open && styles.inputOpen]} textAlignVertical="top" value={content} />
-          {open ? <Pressable accessibilityLabel="Cerrar" hitSlop={8} onPress={() => void closeComposer()} style={styles.close}><AppIcon color={themeColors.textMuted} name="x" size={17} /></Pressable> : null}
+          {open ? <Pressable accessibilityLabel="Cerrar" disabled={publishPhase !== 'idle'} hitSlop={8} onPress={() => void closeComposer()} style={styles.close}><AppIcon color={themeColors.textMuted} name="x" size={17} /></Pressable> : null}
         </View>
       </View>
 
-      {open && imageUri ? <View style={styles.imagePreview}><Image contentFit="cover" source={{ uri: imageUri }} style={styles.image} transition={160} /><Pressable accessibilityLabel="Quitar imagen" onPress={() => setImageUri(null)} style={styles.remove}><AppIcon color={themeColors.textOnPrimary} name="x" size={16} /></Pressable></View> : null}
+      {open && images.length ? <View style={styles.imagePreview}><PostMediaGrid images={images} onRemove={removeImage} recyclingKey="composer" /></View> : null}
 
       {open && (isRecording || audioUri) ? <View style={[styles.audio, { backgroundColor: isRecording ? themeColors.dangerSoft : themeColors.primarySoft }]}><AppIcon color={isRecording ? themeColors.danger : themeColors.primaryDark} name={isRecording ? 'mic' : 'volume-2'} size={17} /><AppText style={[styles.audioText, { color: themeColors.text }]} variant="caption">{isRecording ? `Grabando · ${Math.round(recordingMillis / 1000)} s` : audioName}</AppText>{!isRecording ? <Pressable accessibilityLabel="Quitar audio" hitSlop={8} onPress={removeAudio}><AppIcon color={themeColors.textMuted} name="x" size={16} /></Pressable> : null}</View> : null}
 
@@ -79,19 +108,22 @@ export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePos
         {open ? (
           <>
             <View style={styles.openTools}>
-              <Pressable accessibilityLabel="Subir imagen" onPress={() => void pickImage()} style={[styles.openTool, imageUri && { backgroundColor: themeColors.primarySoft }]}><AppIcon color={imageUri ? themeColors.primaryDark : themeColors.textMuted} name="image" size={18} /><AppText style={[styles.openToolText, { color: imageUri ? themeColors.primaryDark : themeColors.textMuted }, imageUri && styles.openToolTextActive]} variant="caption">Foto</AppText></Pressable>
+              <Pressable accessibilityLabel="Subir imágenes" disabled={publishPhase !== 'idle'} onPress={() => void pickImage()} style={[styles.openTool, imageUri && { backgroundColor: themeColors.primarySoft }]}><AppIcon color={imageUri ? themeColors.primaryDark : themeColors.textMuted} name="image" size={18} /><AppText style={[styles.openToolText, { color: imageUri ? themeColors.primaryDark : themeColors.textMuted }, imageUri && styles.openToolTextActive]} variant="caption">{images.length ? `${images.length} fotos` : 'Fotos'}</AppText></Pressable>
               <Pressable accessibilityLabel={isRecording ? 'Detener grabación' : 'Grabar audio'} onPress={() => void toggleRecording()} style={[styles.openTool, isRecording && { backgroundColor: themeColors.dangerSoft }]}><AppIcon color={isRecording ? themeColors.danger : themeColors.textMuted} name={isRecording ? 'square' : 'mic'} size={17} /><AppText style={[styles.openToolText, { color: isRecording ? themeColors.danger : themeColors.textMuted }, isRecording && styles.recordToolText]} variant="caption">{isRecording ? 'Detener' : 'Grabar'}</AppText></Pressable>
               <Pressable accessibilityLabel="Crear encuesta" onPress={() => setPollEnabled((current) => !current)} style={[styles.openTool, pollEnabled && { backgroundColor: themeColors.primarySoft }]}><AppIcon color={pollEnabled ? themeColors.primaryDark : themeColors.textMuted} name="bar-chart-2" size={18} /><AppText style={[styles.openToolText, { color: pollEnabled ? themeColors.primaryDark : themeColors.textMuted }, pollEnabled && styles.openToolTextActive]} variant="caption">Encuesta</AppText></Pressable>
               <Pressable accessibilityLabel="Crear evento" onPress={() => setEventEnabled((current) => !current)} style={[styles.openTool, eventEnabled && { backgroundColor: themeColors.primarySoft }]}><AppIcon color={eventEnabled ? themeColors.primaryDark : themeColors.textMuted} name="calendar" size={18} /><AppText style={[styles.openToolText, { color: eventEnabled ? themeColors.primaryDark : themeColors.textMuted }, eventEnabled && styles.openToolTextActive]} variant="caption">Evento</AppText></Pressable>
             </View>
             <View style={styles.publishRow}>
               <AppText style={styles.counter} variant="caption">Máximo {POST_CONTENT_LIMIT} caracteres · {content.length}/{POST_CONTENT_LIMIT}</AppText>
-              <Pressable accessibilityRole="button" disabled={!canPublish} onPress={publish} style={({ pressed }) => [styles.publish, { backgroundColor: themeColors.primaryDark }, !canPublish && styles.publishDisabled, pressed && canPublish && styles.pressed]}><AppText style={[styles.publishText, { color: themeColors.textOnPrimary }]} variant="caption">Publicar</AppText><AppIcon color={themeColors.textOnPrimary} name="arrow-up" size={15} /></Pressable>
+              <Pressable accessibilityRole="button" disabled={!canPublish || publishPhase !== 'idle'} onPress={() => void publish()} style={({ pressed }) => [styles.publish, { backgroundColor: themeColors.primaryDark }, (!canPublish || publishPhase !== 'idle') && styles.publishDisabled, publishPhase === 'success' && styles.publishSuccess, pressed && canPublish && publishPhase === 'idle' && styles.pressed]}>
+                {publishPhase === 'publishing' ? <ActivityIndicator color={themeColors.textOnPrimary} size="small" /> : <AppIcon color={themeColors.textOnPrimary} name={publishPhase === 'success' ? 'check' : 'arrow-up'} size={15} />}
+                <AppText style={[styles.publishText, { color: themeColors.textOnPrimary }]} variant="caption">{publishPhase === 'publishing' ? 'Publicando' : publishPhase === 'success' ? 'Publicado' : 'Publicar'}</AppText>
+              </Pressable>
             </View>
           </>
         ) : (
           <View style={styles.quickTools}>
-            <Pressable accessibilityLabel="Subir imagen" onPress={() => { setOpen(true); void pickImage(); }} style={styles.quickTool}><AppIcon color={themeColors.textMuted} name="image" size={18} /><AppText style={[styles.quickToolText, { color: themeColors.textMuted }]} variant="caption">Imagen</AppText></Pressable>
+             <Pressable accessibilityLabel="Subir imágenes" onPress={() => { setOpen(true); void pickImage(); }} style={styles.quickTool}><AppIcon color={themeColors.textMuted} name="image" size={18} /><AppText style={[styles.quickToolText, { color: themeColors.textMuted }]} variant="caption">Fotos</AppText></Pressable>
             <View style={[styles.toolDivider, { backgroundColor: themeColors.border }]} />
             <Pressable accessibilityLabel="Crear encuesta" onPress={() => { setOpen(true); setPollEnabled(true); }} style={styles.quickTool}><AppIcon color={themeColors.textMuted} name="bar-chart-2" size={18} /><AppText style={[styles.quickToolText, { color: themeColors.textMuted }]} variant="caption">Encuesta</AppText></Pressable>
             <View style={[styles.toolDivider, { backgroundColor: themeColors.border }]} />
@@ -99,7 +131,7 @@ export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePos
           </View>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 });
 
@@ -116,8 +148,6 @@ const useStyles = makeThemedStyles((colors) => ({
   inputOpen: { minHeight: 88, paddingTop: 12 },
   close: { alignItems: 'center', height: 34, justifyContent: 'center', marginTop: 4, width: 34 },
   imagePreview: { marginTop: 10, position: 'relative' },
-  image: { aspectRatio: 4 / 3, borderRadius: 12, width: '100%' },
-  remove: { alignItems: 'center', backgroundColor: 'rgba(28,28,30,0.78)', borderRadius: radii.pill, height: 30, justifyContent: 'center', position: 'absolute', right: 8, top: 8, width: 30 },
   audio: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: 10, flexDirection: 'row', gap: 8, marginTop: 9, minHeight: 40, paddingHorizontal: 11 },
   audioRecording: { backgroundColor: colors.dangerSoft },
   audioText: { color: colors.text, flex: 1, fontFamily: typography.bodyMedium },
@@ -138,6 +168,7 @@ const useStyles = makeThemedStyles((colors) => ({
   publishRow: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 42 },
   counter: { color: colors.textMuted, flex: 1, fontSize: 9 },
   publish: { alignItems: 'center', backgroundColor: colors.primaryDark, borderRadius: radii.pill, flexDirection: 'row', gap: 5, minHeight: 36, paddingHorizontal: 12 },
+  publishSuccess: { opacity: 1 },
   publishText: { fontFamily: typography.bodySemiBold, fontSize: 10 },
   publishDisabled: { opacity: 0.3 },
   quickTools: { alignItems: 'center', flex: 1, flexDirection: 'row' },

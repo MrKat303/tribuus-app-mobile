@@ -10,10 +10,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { createPostImageVariants } from '@/features/feed/media/createPostImageVariants';
-import type { CommunityPostCategory, CommunityPostDraft, CommunityPostImageVariants } from '@/types/community';
+import type { CommunityPostCategory, CommunityPostDraft, CommunityPostImage } from '@/types/community';
 
 export const POST_CONTENT_LIMIT = 350;
 export const MAX_POLL_OPTIONS = 4;
+export const MAX_POST_IMAGES = 12;
 
 const initialPollOptions = () => ['', ''];
 const recordingOptions = { ...RecordingPresets.HIGH_QUALITY, directory: 'document' as const };
@@ -24,8 +25,7 @@ export function usePostComposer() {
   const imageRequestId = useRef(0);
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<CommunityPostCategory>('comunidad');
-  const [imageUri, setImageUriState] = useState<string | null>(null);
-  const [imageVariants, setImageVariants] = useState<CommunityPostImageVariants | null>(null);
+  const [images, setImages] = useState<CommunityPostImage[]>([]);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [audioName, setAudioName] = useState<string | null>(null);
@@ -42,7 +42,13 @@ export function usePostComposer() {
   const hasEvent = eventEnabled && Boolean(eventTitle.trim() && eventDate.trim() && eventLocation.trim());
   const isRecording = recorderState.isRecording;
   const recordingMillis = recorderState.durationMillis;
-  const canPublish = !isRecording && !isProcessingImage && Boolean(content.trim() || imageUri || audioUri || hasPoll || hasEvent);
+  const imageUri = images[0]?.uri ?? null;
+  const imageVariants = images[0]?.variants ?? null;
+  const canPublish = !isRecording
+    && !isProcessingImage
+    && (!pollEnabled || hasPoll)
+    && (!eventEnabled || hasEvent)
+    && Boolean(content.trim() || images.length || audioUri || hasPoll || hasEvent);
 
   const restorePlaybackMode = useCallback(async () => {
     try {
@@ -53,24 +59,24 @@ export function usePostComposer() {
   }, []);
 
   const stopActiveRecorder = useCallback(async () => {
-    if (audioRecorder.isRecording) {
+    if (isRecording) {
       try { await audioRecorder.stop(); } catch { /* It may already be stopped. */ }
     }
     await restorePlaybackMode();
-  }, [audioRecorder, restorePlaybackMode]);
+  }, [audioRecorder, isRecording, restorePlaybackMode]);
 
   useEffect(() => () => {
     imageRequestId.current += 1;
-    if (audioRecorder.isRecording) void audioRecorder.stop();
+    // useAudioRecorder owns and releases the native recorder during unmount.
+    // Accessing it from this cleanup can race with that release on Android.
     void restorePlaybackMode();
-  }, [audioRecorder, restorePlaybackMode]);
+  }, [restorePlaybackMode]);
 
   const reset = useCallback(() => {
     imageRequestId.current += 1;
     setContent('');
     setCategory('comunidad');
-    setImageUriState(null);
-    setImageVariants(null);
+    setImages([]);
     setIsProcessingImage(false);
     setAudioUri(null);
     setAudioName(null);
@@ -91,37 +97,39 @@ export function usePostComposer() {
   const pickImage = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsMultipleSelection: true,
         mediaTypes: ['images'],
         quality: 0.85,
+        selectionLimit: MAX_POST_IMAGES,
       });
       if (result.canceled) return;
 
-      const asset = result.assets[0];
       const requestId = ++imageRequestId.current;
-      setImageUriState(asset.uri);
-      setImageVariants(null);
+      const selectedImages = result.assets.slice(0, MAX_POST_IMAGES).map((asset, index) => ({
+        id: asset.assetId ?? `image-${requestId}-${index}`,
+        uri: asset.uri,
+      }));
+      setImages(selectedImages);
       setIsProcessingImage(true);
-      try {
-        const variants = await createPostImageVariants({
-          height: asset.height,
-          uri: asset.uri,
-          width: asset.width,
-        });
-        if (imageRequestId.current === requestId) {
-          setImageVariants(variants);
-          setImageUriState(variants.feed.uri);
+      let optimizationFailed = false;
+      for (const [index, asset] of result.assets.slice(0, MAX_POST_IMAGES).entries()) {
+        try {
+          const variants = await createPostImageVariants({
+            height: asset.height,
+            uri: asset.uri,
+            width: asset.width,
+          });
+          if (imageRequestId.current !== requestId) return;
+          setImages((current) => current.map((image) => image.id === selectedImages[index].id
+            ? { ...image, uri: variants.feed.uri, variants }
+            : image));
+        } catch {
+          optimizationFailed = true;
         }
-      } catch {
-        if (imageRequestId.current === requestId) {
-          setImageVariants(null);
-          setImageUriState(asset.uri);
-          Alert.alert('Imagen sin optimizar', 'La foto se adjuntó, pero no se pudieron crear sus versiones optimizadas.');
-        }
-      } finally {
-        if (imageRequestId.current === requestId) setIsProcessingImage(false);
       }
+      if (imageRequestId.current !== requestId) return;
+      setIsProcessingImage(false);
+      if (optimizationFailed) Alert.alert('Imagen sin optimizar', 'Algunas fotos se adjuntaron sin su versión optimizada.');
     } catch {
       Alert.alert('Galería no disponible', 'Recompila la app para incluir el selector de imágenes en el development build.');
     }
@@ -129,9 +137,12 @@ export function usePostComposer() {
 
   const setImageUri = useCallback((uri: string | null) => {
     imageRequestId.current += 1;
-    setImageUriState(uri);
+    setImages(uri ? [{ id: `image-${Date.now()}`, uri }] : []);
     setIsProcessingImage(false);
-    if (!uri) setImageVariants(null);
+  }, []);
+
+  const removeImage = useCallback((imageId: string) => {
+    setImages((current) => current.filter((image) => image.id !== imageId));
   }, []);
 
   const toggleRecording = useCallback(async () => {
@@ -195,6 +206,7 @@ export function usePostComposer() {
       content: eventEnabled
         ? [`📅 ${eventDate.trim()}`, content.trim()].filter(Boolean).join('\n')
         : content.trim(),
+      images: images.length ? images : undefined,
       imageVariants: imageVariants ?? undefined,
       imageUri: imageUri ?? undefined,
       location: eventEnabled ? eventLocation.trim() : undefined,
@@ -206,13 +218,13 @@ export function usePostComposer() {
     });
     reset();
     return true;
-  }, [audioName, audioUri, canPublish, category, content, eventDate, eventEnabled, eventLocation, eventTitle, hasEvent, hasPoll, imageUri, imageVariants, pollEnabled, pollQuestion, reset, validPollOptions]);
+  }, [audioName, audioUri, canPublish, category, content, eventDate, eventEnabled, eventLocation, eventTitle, hasEvent, hasPoll, imageUri, imageVariants, images, pollEnabled, pollQuestion, reset, validPollOptions]);
 
   return {
     addPollOption, audioName, audioUri, canPublish, category, content, discard,
-    eventDate, eventEnabled, eventLocation, eventTitle, imageUri, isProcessingImage, isRecording,
+    eventDate, eventEnabled, eventLocation, eventTitle, images, imageUri, isProcessingImage, isRecording,
     pickImage, pollEnabled, pollOptions, pollQuestion, recordingMillis, removeAudio,
-    removePollOption, reset, setCategory, setContent, setEventDate, setEventEnabled,
+    removeImage, removePollOption, reset, setCategory, setContent, setEventDate, setEventEnabled,
     setEventLocation, setEventTitle, setImageUri, setPollEnabled, setPollQuestion,
     submit, toggleRecording, updatePollOption,
   };
