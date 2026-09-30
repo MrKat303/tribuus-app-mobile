@@ -12,7 +12,7 @@ Usa un prefijo por tipo de cambio, un área concreta y, si existe, el número de
 
 | Prefijo | Uso | Ejemplo |
 | --- | --- | --- |
-| `feat/` | Capacidad nueva del producto | `feat/community-42-wallet-history` |
+| `feat/` | Capacidad nueva del producto | `feat/community-42-badges` |
 | `ux/` | Usabilidad, interacción o accesibilidad | `ux/map-51-search-empty-state` |
 | `fix/` | Corrección de comportamiento | `fix/audio-63-recording-cleanup` |
 | `refactor/` | Reorganización sin cambiar el comportamiento esperado | `refactor/feed-72-shared-composer` |
