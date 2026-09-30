@@ -12,8 +12,10 @@ import { Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppearanceProvider, useAppAppearance } from '@/context/AppearanceContext';
+import { CommunityWalletProvider } from '@/context/CommunityWalletContext';
 import { PostsProvider } from '@/context/PostsContext';
 import { PlacesProvider } from '@/context/PlacesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
@@ -42,7 +44,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) return null;
 
-  return <AppearanceProvider><AppNavigator /></AppearanceProvider>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><AppearanceProvider><AppNavigator /></AppearanceProvider></GestureHandlerRootView>;
 }
 
 function AppNavigator() {
@@ -52,7 +54,7 @@ function AppNavigator() {
 
   return (
     <ThemeProvider value={navigationTheme}>
-      <ProfileProvider><PlacesProvider><PostsProvider>
+      <ProfileProvider><PlacesProvider><PostsProvider><CommunityWalletProvider>
         <Stack
           screenOptions={{
             animation: 'fade',
@@ -61,14 +63,38 @@ function AppNavigator() {
           }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="chat/[conversationId]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="discover/[category]" />
+          <Stack.Screen name="discover/item/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="configuracion" />
           <Stack.Screen name="ajustes/[section]" />
           <Stack.Screen name="notificaciones" />
-          <Stack.Screen name="community-wallet" />
-          <Stack.Screen name="community-wallet-analytics" />
+          <Stack.Screen name="community-wallet" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen
+            name="community-wallet/donate"
+            options={{
+              animation: 'default',
+              presentation: 'formSheet',
+              sheetAllowedDetents: [0.92],
+              sheetCornerRadius: 24,
+              sheetGrabberVisible: true,
+              sheetInitialDetentIndex: 0,
+            }}
+          />
+          <Stack.Screen name="community-wallet/propose" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+          <Stack.Screen
+            name="comments/[postId]"
+            options={{
+              animation: 'default',
+              presentation: 'formSheet',
+              sheetAllowedDetents: [0.92],
+              sheetCornerRadius: 24,
+              sheetGrabberVisible: true,
+              sheetInitialDetentIndex: 0,
+            }}
+          />
         </Stack>
-      </PostsProvider></PlacesProvider></ProfileProvider>
+      </CommunityWalletProvider></PostsProvider></PlacesProvider></ProfileProvider>
       <StatusBar hidden style={isDark ? 'light' : 'dark'} />
     </ThemeProvider>
   );

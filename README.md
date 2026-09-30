@@ -4,7 +4,7 @@ Aplicación móvil de Tribuus para Android e iOS, construida con React Native, E
 
 ## Estado del proyecto
 
-La app incluye navegación y pantallas para inicio, mapa, publicaciones, comunidad, chat, noticias, tienda, perfil, notificaciones, configuración y billetera comunitaria. Los formularios y modelos de feed, lugares y mapa permiten probar interacciones sin depender de una API de producto.
+La app incluye navegación y pantallas para inicio, mapa, publicaciones, comunidad, chat, noticias, tienda, perfil, notificaciones, configuración y una Community Wallet integrada con Stellar. Los formularios y modelos de feed, lugares y mapa permiten probar interacciones sin depender de una API de producto.
 
 Las publicaciones y lugares se inicializan con datos de demostración y viven en memoria durante la ejecución. El perfil y la preferencia de apariencia pueden persistir localmente con AsyncStorage. Ninguno de esos datos representa un backend de producción. Existe un cliente Supabase para la sesión y la renovación automática de tokens, pero las pantallas todavía no usan Supabase para cargar o guardar contenido. No hay migraciones de base de datos en este repositorio.
 
@@ -17,6 +17,7 @@ El mapa usa `@rnmapbox/maps`, búsqueda de lugares con Mapbox y ubicación en pr
 - React Native Reanimated, Gesture Handler, Safe Area Context y React Native Screens.
 - Mapbox mediante `@rnmapbox/maps`, más búsqueda de lugares con la API de geocoding.
 - Supabase JS para el cliente y la gestión de sesión.
+- Stellar Horizon para saldo e historial público, y SEP-7 para delegar donaciones a una wallet externa.
 - AsyncStorage para persistir la sesión de Supabase en iOS y Android.
 - Jest con `jest-expo`; ESLint y TypeScript para controles estáticos.
 - Node.js `22.13.0` (definido en `.nvmrc`) y npm `11.6.2`.
@@ -25,7 +26,8 @@ El mapa usa `@rnmapbox/maps`, búsqueda de lugares con Mapbox y ubicación en pr
 
 Expo Router resuelve las rutas a partir de `src/app`. Los grupos de rutas organizan las pestañas principales y las pantallas de detalle:
 
-- `src/app/`: layouts y rutas de bienvenida, pestañas, descubrimiento, notificaciones, configuración y billetera comunitaria.
+- `src/app/`: layouts y rutas de bienvenida, pestañas, descubrimiento, notificaciones, configuración y Community Wallet.
+- `src/features/community-wallet/`: iniciativas, propuestas, apoyo, donación SEP-7 e historial comunitario.
 - `src/features/feed/`: pantalla del feed, composición, comentarios, encuestas y reducer/modelo de publicaciones.
 - `src/features/map/`: pantalla de mapa, búsqueda, cámara, ubicación, marcadores, clustering y ranking.
 - `src/features/places/`: modelos, ranking, tarjetas y formularios de lugares y recomendaciones.
@@ -69,6 +71,9 @@ Expo SDK 57 requiere React Native 0.86 y Node.js 22.13.x como mínimo. Consulta 
    | `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` | Token público de Mapbox para mostrar el mapa y buscar lugares. Reemplaza el valor de ejemplo. |
    | `EXPO_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase. El cliente Supabase lo requiere al iniciar la app. |
    | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key del proyecto Supabase. El cliente Supabase la requiere al iniciar la app. |
+   | `EXPO_PUBLIC_STELLAR_NETWORK` | Red Stellar: usa `testnet` durante desarrollo y `public` en producción. |
+   | `EXPO_PUBLIC_STELLAR_HORIZON_URL` | Endpoint Horizon correspondiente a la red seleccionada. |
+   | `EXPO_PUBLIC_STELLAR_COMMUNITY_ACCOUNT` | Dirección pública `G...` del fondo comunitario que recibe donaciones. |
 
    Las variables con prefijo `EXPO_PUBLIC_` se incorporan al bundle del cliente. Usa solo claves diseñadas para exposición en una app móvil. No agregues claves `service_role`, secretos privados ni credenciales de servidor. Restringe el token de Mapbox desde su panel.
 
