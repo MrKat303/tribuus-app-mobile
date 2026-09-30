@@ -73,4 +73,18 @@ describe('posts model', () => {
     expect(result[0].comments).toHaveLength(1);
     expect(result[0].comments[0].content).toBe('Gracias');
   });
+
+  test('toggles likes on an individual comment without affecting the post vote', () => {
+    const withComment = postsReducer([post], {
+      type: 'commentAdded',
+      postId: post.id,
+      comment: { author: 'Jaime M.', content: 'Gracias', id: 'comment-1', initials: 'JM', likes: 0 },
+    });
+    const liked = postsReducer(withComment, { type: 'commentLikeToggled', postId: post.id, commentId: 'comment-1' });
+    const unliked = postsReducer(liked, { type: 'commentLikeToggled', postId: post.id, commentId: 'comment-1' });
+
+    expect(liked[0].comments[0]).toMatchObject({ isLiked: true, likes: 1 });
+    expect(unliked[0].comments[0]).toMatchObject({ isLiked: false, likes: 0 });
+    expect(unliked[0].likes).toBe(post.likes);
+  });
 });

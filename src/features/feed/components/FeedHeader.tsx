@@ -29,7 +29,7 @@ export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilte
       <View style={styles.topBar}>
         <BrandMark />
         <View style={styles.topActions}>
-          <Pressable accessibilityLabel="Community Wallet del barrio" accessibilityRole="button" onPress={onOpenWallet} style={[styles.notificationButton, { backgroundColor: themeColors.primarySoft }]}>
+          <Pressable accessibilityLabel="Abrir Community Wallet" accessibilityRole="button" onPress={onOpenWallet} style={[styles.notificationButton, { backgroundColor: themeColors.primarySoft }]}>
             <AppIcon color={themeColors.primaryDark} name="briefcase" size={17} />
           </Pressable>
           <Pressable accessibilityLabel="Notificaciones" accessibilityRole="button" onPress={onOpenNotifications} style={[styles.notificationButton, { backgroundColor: themeColors.primarySoft }]}>

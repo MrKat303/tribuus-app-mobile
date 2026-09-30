@@ -17,6 +17,7 @@ export type PostsAction =
   | { type: 'likeToggled'; postId: string }
   | { type: 'bookmarkToggled'; postId: string }
   | { type: 'commentAdded'; postId: string; comment: CommunityPost['comments'][number] }
+  | { type: 'commentLikeToggled'; postId: string; commentId: string }
   | { type: 'pollOptionSelected'; postId: string; optionId: string };
 
 export function createCommunityPost(draft: CommunityPostDraft, id: string, user: CommunityUserIdentity = currentCommunityUser): CommunityPost {
@@ -51,6 +52,19 @@ export function postsReducer(posts: CommunityPost[], action: PostsAction): Commu
     case 'commentAdded':
       return posts.map((post) => post.id === action.postId
         ? { ...post, comments: [...post.comments, action.comment] }
+        : post);
+    case 'commentLikeToggled':
+      return posts.map((post) => post.id === action.postId
+        ? {
+          ...post,
+          comments: post.comments.map((comment) => comment.id === action.commentId
+            ? {
+              ...comment,
+              isLiked: !(comment.isLiked ?? false),
+              likes: Math.max(0, (comment.likes ?? 0) + (comment.isLiked ? -1 : 1)),
+            }
+            : comment),
+        }
         : post);
     case 'pollOptionSelected':
       return posts.map((post) => {

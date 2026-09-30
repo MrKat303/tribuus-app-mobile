@@ -6,11 +6,12 @@ import type { CommunityPost, CommunityPostDraft } from '@/types/community';
 import { useProfile } from '@/context/ProfileContext';
 
 type PostsContextValue = {
-  addComment: (postId: string, content: string) => void;
-  addPost: (draft: CommunityPostDraft) => void;
+  addComment: (postId: string, content: string, replyToCommentId?: string) => void;
+  addPost: (draft: CommunityPostDraft) => string;
   posts: CommunityPost[];
   selectPollOption: (postId: string, optionId: string) => void;
   toggleBookmark: (postId: string) => void;
+  toggleCommentLike: (postId: string, commentId: string) => void;
   toggleLike: (postId: string) => void;
 };
 
@@ -25,9 +26,11 @@ export function PostsProvider({ children }: PropsWithChildren) {
     location: currentCommunityUser.location,
   }), [profile.name]);
   const addPost = useCallback((draft: CommunityPostDraft) => {
-    dispatch({ type: 'postAdded', post: createCommunityPost(draft, `local-post-${Date.now()}`, userIdentity) });
+    const postId = `local-post-${Date.now()}`;
+    dispatch({ type: 'postAdded', post: createCommunityPost(draft, postId, userIdentity) });
+    return postId;
   }, [userIdentity]);
-  const addComment = useCallback((postId: string, content: string) => {
+  const addComment = useCallback((postId: string, content: string, replyToCommentId?: string) => {
     dispatch({
       type: 'commentAdded',
       postId,
@@ -36,6 +39,10 @@ export function PostsProvider({ children }: PropsWithChildren) {
         content: content.trim(),
         id: `local-comment-${Date.now()}`,
         initials: userIdentity.initials,
+        isLiked: false,
+        likes: 0,
+        replyToCommentId,
+        timeLabel: 'Ahora',
       },
     });
   }, [userIdentity]);
@@ -43,10 +50,11 @@ export function PostsProvider({ children }: PropsWithChildren) {
     dispatch({ type: 'pollOptionSelected', postId, optionId });
   }, []);
   const toggleBookmark = useCallback((postId: string) => dispatch({ type: 'bookmarkToggled', postId }), []);
+  const toggleCommentLike = useCallback((postId: string, commentId: string) => dispatch({ type: 'commentLikeToggled', postId, commentId }), []);
   const toggleLike = useCallback((postId: string) => dispatch({ type: 'likeToggled', postId }), []);
   const value = useMemo(
-    () => ({ addComment, addPost, posts, selectPollOption, toggleBookmark, toggleLike }),
-    [addComment, addPost, posts, selectPollOption, toggleBookmark, toggleLike],
+    () => ({ addComment, addPost, posts, selectPollOption, toggleBookmark, toggleCommentLike, toggleLike }),
+    [addComment, addPost, posts, selectPollOption, toggleBookmark, toggleCommentLike, toggleLike],
   );
 
   return <PostsContext.Provider value={value}>{children}</PostsContext.Provider>;

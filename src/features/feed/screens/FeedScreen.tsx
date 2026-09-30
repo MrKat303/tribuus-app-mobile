@@ -1,6 +1,6 @@
-import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
+import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,7 +25,10 @@ export function FeedScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { addPost, posts } = usePosts();
+  const listRef = useRef<FlashListRef<CommunityPost>>(null);
+  const newPostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeFilter, setActiveFilter] = useState<FeedFilter>('todo');
+  const [newPostId, setNewPostId] = useState<string | null>(null);
   const visiblePosts = useMemo(
     () => posts.filter((post) => activeFilter === 'todo' || post.category === activeFilter),
     [activeFilter, posts],
@@ -35,17 +38,25 @@ export function FeedScreen() {
   const openNotifications = useCallback(() => router.push('/notificaciones'), [router]);
   const openWallet = useCallback(() => router.push('/community-wallet'), [router]);
   const createPost = useCallback((draft: CommunityPostDraft) => {
-    addPost(draft);
+    const postId = addPost(draft);
+    setNewPostId(postId);
     setActiveFilter('todo');
+    requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: true, offset: 0 }));
+    if (newPostTimerRef.current) clearTimeout(newPostTimerRef.current);
+    newPostTimerRef.current = setTimeout(() => setNewPostId(null), 900);
   }, [addPost]);
   const renderPost = useCallback(({ item }: ListRenderItemInfo<CommunityPost>) => (
-    <View style={styles.post}><CommunityPostCard post={item} /></View>
-  ), [styles.post]);
+    <View style={styles.post}><CommunityPostCard isNew={item.id === newPostId} post={item} /></View>
+  ), [newPostId, styles.post]);
   const getPostType = useCallback((post: CommunityPost) => {
-    if (post.imageVariants || post.imageUri) return 'image';
+    if (post.images?.length || post.imageVariants || post.imageUri) return 'image';
     if (post.poll) return 'poll';
     if (post.audioUri) return 'audio';
     return 'text';
+  }, []);
+
+  useEffect(() => () => {
+    if (newPostTimerRef.current) clearTimeout(newPostTimerRef.current);
   }, []);
 
   const header = useMemo(() => (
@@ -70,6 +81,7 @@ export function FeedScreen() {
   return (
     <Screen>
       <FlashList
+        ref={listRef}
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 12) + 92 }]}
         data={visiblePosts}
         drawDistance={900}

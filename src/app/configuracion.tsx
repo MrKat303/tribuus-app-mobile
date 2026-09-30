@@ -97,7 +97,7 @@ export default function SettingsScreen() {
         <SettingsSection label="CUENTA Y PERFIL">
           <SettingsRow icon="map-pin" label="Comuna" onPress={() => openSection('informacion-personal')} value="Providencia" />
           <SettingsDivider />
-          <SettingsRow icon="briefcase" label="Community Wallet" onPress={() => router.push('/community-wallet')} subtitle="Aportes y gastos transparentes del barrio" />
+          <SettingsRow icon="briefcase" label="Community Wallet" onPress={() => router.push('/community-wallet')} subtitle="Iniciativas y fondo transparente en Stellar" />
           <SettingsDivider />
           <SettingsRow icon="award" label="Badges" onPress={() => openSection('badges')} subtitle="2 obtenidos" />
           <SettingsDivider />

@@ -11,7 +11,11 @@ export const demoPosts: CommunityPost[] = [
     author: 'Centro Cultural Barrio Vivo',
     category: 'evento',
     comments: [
-      { id: 'comment-0', author: 'Vale S.', content: '¿Se puede llegar sin inscripción?', initials: 'VS' },
+      { id: 'comment-0', author: 'Vale S.', content: '¿Se puede llegar sin inscripción?', initials: 'VS', likes: 3, timeLabel: '7 min' },
+      { id: 'comment-0-reply', author: 'Centro Cultural Barrio Vivo', content: 'Sí, la entrada es liberada hasta completar capacidad.', initials: 'BV', likes: 5, replyToCommentId: 'comment-0', timeLabel: '5 min' },
+      { id: 'comment-0-2', author: 'Tomás G.', content: '¿Habrá sillas o recomiendan llevar una?', initials: 'TG', likes: 1, timeLabel: '4 min' },
+      { id: 'comment-0-3', author: 'Antonia P.', content: 'Qué buena iniciativa para el barrio.', initials: 'AP', likes: 7, timeLabel: '3 min' },
+      { id: 'comment-0-4', author: 'Martín C.', content: 'Nos vemos el viernes 🙌', initials: 'MC', likes: 2, timeLabel: '1 min' },
     ],
     content: 'Este viernes tendremos cine al aire libre. Trae una manta; nosotros ponemos las cabritas y la pantalla.',
     initials: 'BV',

@@ -5,6 +5,10 @@ export type CommunityComment = {
   author: string;
   content: string;
   initials: string;
+  isLiked?: boolean;
+  likes?: number;
+  replyToCommentId?: string;
+  timeLabel?: string;
 };
 
 export type CommunityPollOption = {
@@ -30,6 +34,12 @@ export type CommunityPostImageVariants = {
   thumbnail: CommunityPostImageVariant;
 };
 
+export type CommunityPostImage = {
+  id: string;
+  uri: string;
+  variants?: CommunityPostImageVariants;
+};
+
 export type CommunityPost = {
   id: string;
   author: string;
@@ -43,6 +53,7 @@ export type CommunityPost = {
   location?: string;
   audioName?: string;
   audioUri?: string;
+  images?: CommunityPostImage[];
   imageVariants?: CommunityPostImageVariants;
   imageUri?: string;
   poll?: CommunityPoll;
@@ -56,6 +67,7 @@ export type CommunityPostDraft = {
   audioUri?: string;
   category?: CommunityPostCategory;
   content: string;
+  images?: CommunityPostImage[];
   imageVariants?: CommunityPostImageVariants;
   imageUri?: string;
   location?: string;
