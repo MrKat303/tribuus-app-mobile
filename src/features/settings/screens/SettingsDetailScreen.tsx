@@ -4,6 +4,7 @@ import { Alert, View } from 'react-native';
 
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAuth } from '@/context/AuthContext';
 import { useProfile } from '@/context/ProfileContext';
 import {
   SettingsAction,
@@ -67,11 +68,12 @@ export function SettingsDetailScreen() {
   const section = Array.isArray(params.section) ? params.section[0] : params.section ?? 'cuenta';
   const info = sectionInfo[section] ?? sectionInfo.cuenta;
   const { isDark, setThemeMode, themeMode } = useAppAppearance();
+  const { session } = useAuth();
   const { profile, updateProfile } = useProfile();
   const detailStyles = useDetailStyles();
   const [toggles, setToggles] = useState(initialToggles);
-  const [choices, setChoices] = useState<Record<string, string>>({ commune: 'Providencia', frequency: 'Al instante', quiet: '22:00–08:00', visibility: 'Vecinos de mi comuna', zoom: 'Cerca', country: 'Chile', textSize: 'Normal', imageQuality: 'Automática', density: 'Cómoda' });
-  const [fields, setFields] = useState<Record<string, string>>({ name: profile.name, email: 'jaime@email.com', bio: profile.bio, currentPassword: '', newPassword: '', feedback: '' });
+  const [choices, setChoices] = useState<Record<string, string>>({ commune: profile.location, frequency: 'Al instante', quiet: '22:00–08:00', visibility: 'Vecinos de mi comuna', zoom: 'Cerca', country: 'Chile', textSize: 'Normal', imageQuality: 'Automática', density: 'Cómoda' });
+  const [fields, setFields] = useState<Record<string, string>>({ name: profile.name, username: profile.username, email: session?.user.email ?? '', bio: profile.bio, currentPassword: '', newPassword: '', feedback: '' });
   const [savingProfile, setSavingProfile] = useState(false);
 
   const setToggle = (key: string) => (value: boolean) => setToggles((current) => ({ ...current, [key]: value }));
@@ -86,7 +88,7 @@ export function SettingsDetailScreen() {
 
     setSavingProfile(true);
     try {
-      await updateProfile({ name: fields.name, bio: fields.bio });
+      await updateProfile({ name: fields.name, username: fields.username, bio: fields.bio, location: choices.commune });
       Alert.alert('Perfil actualizado', 'Tu nombre y biografía se guardaron correctamente.');
     } catch {
       Alert.alert('No pudimos guardar los cambios', 'Inténtalo nuevamente en unos segundos.');
@@ -100,6 +102,8 @@ export function SettingsDetailScreen() {
       {section === 'informacion-personal' ? <>
         <SettingsCard label="DATOS DE LA CUENTA">
           <SettingsField label="Nombre visible" maxLength={50} onChange={setField('name')} value={fields.name} />
+          <SettingsDivider />
+          <SettingsField label="Usuario" maxLength={30} onChange={setField('username')} value={fields.username} />
           <SettingsDivider />
           <SettingsField label="Correo" onChange={setField('email')} value={fields.email} />
           <SettingsDivider />
@@ -221,6 +225,7 @@ export function SettingsDetailScreen() {
       {section === 'cuenta' ? <>
         <SettingsCard label="INFORMACIÓN PERSONAL">
           <SettingsField label="Nombre visible" maxLength={50} onChange={setField('name')} value={fields.name} />
+          <SettingsDivider /><SettingsField label="Usuario" maxLength={30} onChange={setField('username')} value={fields.username} />
           <SettingsDivider /><SettingsField label="Correo" onChange={setField('email')} value={fields.email} />
           <SettingsDivider /><SettingsField label="Biografía" maxLength={160} multiline onChange={setField('bio')} placeholder="Cuéntale a tu comunidad un poco sobre ti" value={fields.bio} />
         </SettingsCard>

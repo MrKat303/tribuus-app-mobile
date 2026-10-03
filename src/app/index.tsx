@@ -55,13 +55,19 @@ export default function WelcomeScreen() {
       <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.replace('/(tabs)/inicio')}
+          onPress={() => router.push('/signup')}
           style={({ pressed }) => [styles.enterButton, pressed && styles.pressed]}>
-          <AppText style={[styles.enterLabel]} variant="bodyStrong">Entrar a Tribus</AppText>
+          <AppText style={[styles.enterLabel]} variant="bodyStrong">Crear mi cuenta</AppText>
           <Feather color={colors.textOnPrimary} name="arrow-right" size={17} />
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/login')}
+          style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}>
+          <AppText style={styles.loginLabel} variant="bodyStrong">Ya tengo una cuenta</AppText>
+        </Pressable>
         <AppText style={styles.demoNote} variant="caption">
-          Tu comunidad local en un solo lugar
+          Tu comunidad local, con identidad y privacidad
         </AppText>
       </View>
     </SafeAreaView>
@@ -93,6 +99,8 @@ const useStyles = makeThemedStyles((colors) => ({
   footer: { gap: spacing.md, marginTop: spacing.xl },
   enterButton: { alignItems: 'center', backgroundColor: colors.primaryDark, borderRadius: 14, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingHorizontal: spacing.lg },
   enterLabel: { color: colors.textOnPrimary, fontFamily: typography.bodySemiBold, fontSize: 14 },
+  loginButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, justifyContent: 'center', minHeight: 50, paddingHorizontal: spacing.lg },
+  loginLabel: { color: colors.text, fontSize: 14 },
   demoNote: { color: colors.textMuted, fontFamily: typography.bodyMedium, fontSize: 10, textAlign: 'center' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
 }));

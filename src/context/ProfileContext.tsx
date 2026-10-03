@@ -1,9 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useMemo } from 'react';
+
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/services/supabase';
 
 export type Profile = {
   bio: string;
+  location: string;
   name: string;
+  username: string;
 };
 
 type ProfileContextValue = {
@@ -11,46 +15,33 @@ type ProfileContextValue = {
   updateProfile: (profile: Profile) => Promise<void>;
 };
 
-const PROFILE_STORAGE_KEY = '@tribuus/profile';
-
-const defaultProfile: Profile = {
-  bio: 'Conectando con las personas y lugares que hacen comunidad.',
-  name: 'Jaime M.',
-};
-
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 export function ProfileProvider({ children }: PropsWithChildren) {
-  const [profile, setProfile] = useState(defaultProfile);
-
-  useEffect(() => {
-    let active = true;
-
-    AsyncStorage.getItem(PROFILE_STORAGE_KEY)
-      .then((storedProfile) => {
-        if (!active || !storedProfile) return;
-        const parsed = JSON.parse(storedProfile) as Partial<Profile>;
-        if (typeof parsed.name !== 'string' || typeof parsed.bio !== 'string') return;
-        setProfile({ name: parsed.name, bio: parsed.bio });
-      })
-      .catch(() => {
-        // Keep the safe defaults if local storage cannot be read.
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { profile: authProfile, refreshProfile, session } = useAuth();
+  const profile = useMemo<Profile>(() => ({
+    bio: authProfile?.bio ?? '',
+    location: authProfile?.location ?? 'Providencia',
+    name: authProfile?.displayName ?? 'Miembro de Tribus',
+    username: authProfile?.username ?? '',
+  }), [authProfile]);
 
   const updateProfile = useCallback(async (nextProfile: Profile) => {
-    const normalizedProfile = {
-      name: nextProfile.name.trim(),
+    const userId = session?.user.id;
+    if (!userId) throw new Error('Tu sesión ya no está activa.');
+    const name = nextProfile.name.trim();
+    const username = nextProfile.username.trim().toLowerCase();
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'V';
+    const result = await supabase.from('profiles').update({
       bio: nextProfile.bio.trim(),
-    };
-
-    await AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(normalizedProfile));
-    setProfile(normalizedProfile);
-  }, []);
+      display_name: name,
+      initials,
+      location: nextProfile.location.trim(),
+      username,
+    }).eq('id', userId);
+    if (result.error) throw new Error(result.error.message);
+    await refreshProfile();
+  }, [refreshProfile, session?.user.id]);
 
   const value = useMemo(() => ({ profile, updateProfile }), [profile, updateProfile]);
 

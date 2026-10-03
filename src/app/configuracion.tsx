@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAuth } from '@/context/AuthContext';
 import { useProfile } from '@/context/ProfileContext';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
@@ -59,6 +60,7 @@ function SettingSwitch({ label, onValueChange, value }: { label: string; onValue
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, isDark, setThemeMode, themeMode } = useAppAppearance();
+  const { signOut } = useAuth();
   const { profile } = useProfile();
   const styles = useStyles();
   const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
@@ -95,7 +97,7 @@ export default function SettingsScreen() {
         </Pressable>
 
         <SettingsSection label="CUENTA Y PERFIL">
-          <SettingsRow icon="map-pin" label="Comuna" onPress={() => openSection('informacion-personal')} value="Providencia" />
+          <SettingsRow icon="map-pin" label="Comuna" onPress={() => openSection('informacion-personal')} value={profile.location} />
           <SettingsDivider />
           <SettingsRow icon="briefcase" label="Community Wallet" onPress={() => router.push('/community-wallet')} subtitle="Iniciativas y fondo transparente en Stellar" />
           <SettingsDivider />
@@ -191,7 +193,10 @@ export default function SettingsScreen() {
           <SettingsRow destructive icon="trash-2" label="Eliminar cuenta" onPress={() => openSection('datos')} />
         </SettingsSection>
 
-        <Pressable onPress={() => Alert.alert('Cerrar sesión', 'El cierre de sesión se conectará al servicio de autenticación.')} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Feather color={colors.danger} name="log-out" size={17} /><AppText style={styles.logoutText}>Cerrar sesión</AppText></Pressable>
+        <Pressable onPress={() => Alert.alert('Cerrar sesión', 'Tendrás que ingresar nuevamente para volver a participar.', [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Cerrar sesión', style: 'destructive', onPress: () => void signOut() },
+        ])} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}><Feather color={colors.danger} name="log-out" size={17} /><AppText style={styles.logoutText}>Cerrar sesión</AppText></Pressable>
         <AppText style={[styles.version, { color: colors.textMuted }]} variant="caption">Tribus · versión 1.0</AppText>
       </ScrollView>
     </SafeAreaView>

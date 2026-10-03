@@ -2,7 +2,7 @@ import Feather from '@/components/ui/AppIcon';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/Screen';
 import { AppButton } from '@/components/ui/AppButton';
@@ -46,8 +46,12 @@ export default function PublishScreen() {
     setPollEnabled, setPollQuestion, submit, toggleRecording, updatePollOption,
   } = usePostComposer();
 
-  function publishPost() {
-    if (submit(addPost)) router.replace('/(tabs)/inicio');
+  async function publishPost() {
+    try {
+      if (await submit(addPost)) router.replace('/(tabs)/inicio');
+    } catch (error) {
+      Alert.alert('No se pudo publicar', error instanceof Error ? error.message : 'Intenta nuevamente.');
+    }
   }
 
   return (
@@ -106,7 +110,7 @@ export default function PublishScreen() {
           <ToolButton active={category === 'evento'} icon="calendar" label="Evento" onPress={() => setCategory('evento')} />
         </View>
         <View style={styles.categories}>{categories.map((item) => { const active = item.value === category; return <Pressable key={item.value} onPress={() => setCategory(item.value)} style={[styles.category, active && styles.categoryActive]}><AppText style={[styles.categoryText, active && styles.categoryTextActive]} variant="caption">{item.label}</AppText></Pressable>; })}</View>
-        <AppButton disabled={!canPublish} icon="arrow-up-circle" label="Publicar ahora" onPress={publishPost} style={!canPublish ? styles.disabled : undefined} />
+        <AppButton disabled={!canPublish} icon="arrow-up-circle" label="Publicar ahora" onPress={() => void publishPost()} style={!canPublish ? styles.disabled : undefined} />
       </Card>
       <AppText style={styles.note} variant="caption">Tus publicaciones serán visibles para las personas de tu comunidad.</AppText>
     </Screen>

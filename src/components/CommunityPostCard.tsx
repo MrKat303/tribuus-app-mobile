@@ -83,14 +83,18 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   }, [post.id]);
 
   function toggleLike() {
-    togglePostLike(post.id);
+    void togglePostLike(post.id).catch((error) => {
+      Alert.alert('No se pudo registrar tu voto', error instanceof Error ? error.message : 'Intenta nuevamente.');
+    });
     likeScale.set(withTiming(0.94, { duration: 70 }, () => {
       likeScale.set(withTiming(1, { duration: 110 }));
     }));
   }
 
   function toggleBookmark() {
-    togglePostBookmark(post.id);
+    void togglePostBookmark(post.id).catch((error) => {
+      Alert.alert('No se pudo guardar', error instanceof Error ? error.message : 'Intenta nuevamente.');
+    });
     saveScale.set(withTiming(0.94, { duration: 70 }, () => {
       saveScale.set(withTiming(1, { duration: 110 }));
     }));
@@ -158,7 +162,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
         </View>
       ) : null}
 
-      {post.poll ? <PostPoll onSelect={(optionId) => selectPollOption(post.id, optionId)} poll={post.poll} selectedOptionId={selectedPollOption} /> : null}
+      {post.poll ? <PostPoll onSelect={(optionId) => { void selectPollOption(post.id, optionId).catch((error) => { Alert.alert('No se pudo votar', error instanceof Error ? error.message : 'Intenta nuevamente.'); }); }} poll={post.poll} selectedOptionId={selectedPollOption} /> : null}
 
       {post.audioUri ? (
         <Pressable accessibilityRole="button" onPress={() => void toggleAudio()} style={({ pressed }) => [styles.audioPlayer, pressed && styles.pressed]}>

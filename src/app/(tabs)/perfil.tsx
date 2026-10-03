@@ -25,7 +25,7 @@ export default function ProfileScreen() {
   const { posts } = usePosts();
   const { profile } = useProfile();
   const initials = useMemo(() => profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(), [profile.name]);
-  const ownPosts = useMemo(() => posts.filter((post) => post.id.startsWith('local-post-') || post.author === 'Jaime M.'), [posts]);
+  const ownPosts = useMemo(() => posts.filter((post) => post.id.startsWith('local-post-') || post.author === profile.name), [posts, profile.name]);
 
   return (
     <Screen scroll>
@@ -53,9 +53,10 @@ export default function ProfileScreen() {
           <View style={styles.nameRow}>
             <View style={styles.nameCopy}>
               <AppText style={styles.name} variant="heading">{profile.name}</AppText>
+              <AppText style={[styles.username, { color: themeColors.primaryDark }]} variant="caption">@{profile.username}</AppText>
               <View style={styles.locationRow}>
                 <Feather color={themeColors.textMuted} name="map-pin" size={13} />
-                <AppText style={[styles.location, { color: themeColors.textMuted }]} variant="caption">Providencia</AppText>
+                <AppText style={[styles.location, { color: themeColors.textMuted }]} variant="caption">{profile.location}</AppText>
               </View>
             </View>
             <Pressable
@@ -132,6 +133,7 @@ const useStyles = makeThemedStyles((colors) => ({
   nameRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   nameCopy: { flex: 1 },
   name: { fontFamily: Platform.select({ ios: 'System', default: typography.title }), fontSize: 24, fontWeight: '700', letterSpacing: -0.5, lineHeight: 29 },
+  username: { fontSize: 11, marginTop: 1 },
   locationRow: { alignItems: 'center', flexDirection: 'row', gap: 4, marginTop: 2 },
   location: { color: colors.textMuted, fontFamily: Platform.select({ ios: 'System', default: typography.body }), fontSize: 12 },
   editButton: { alignItems: 'center', borderRadius: 9, flexDirection: 'row', gap: 5, minHeight: 36, paddingHorizontal: 11 },

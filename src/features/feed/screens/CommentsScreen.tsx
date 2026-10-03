@@ -100,15 +100,19 @@ export function CommentsScreen() {
   const threadedComments = useMemo(() => buildThread(post?.comments ?? []), [post?.comments]);
   const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 
-  const submitComment = useCallback(() => {
+  const submitComment = useCallback(async () => {
     const content = draft.trim();
     if (!content || !postId) return;
-    addComment(postId, content, replyingTo?.id);
-    setDraft('');
-    setReplyingTo(null);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-  }, [addComment, draft, postId, replyingTo?.id]);
+    try {
+      await addComment(postId, content, replyingTo?.id);
+      setDraft('');
+      setReplyingTo(null);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    } catch (error) {
+      Alert.alert('No se pudo comentar', error instanceof Error ? error.message : 'Intenta nuevamente.');
+    }
+  }, [addComment, draft, postId, replyingTo]);
 
   const openCommentMenu = useCallback((comment: CommunityComment) => {
     const copy = () => void Clipboard.setStringAsync(comment.content);
@@ -133,7 +137,7 @@ export function CommentsScreen() {
   const renderComment = useCallback(({ item }: ListRenderItemInfo<ThreadedComment>) => (
     <CommentRow
       item={item}
-      onLike={(commentId) => postId && toggleCommentLike(postId, commentId)}
+      onLike={(commentId) => { if (postId) void toggleCommentLike(postId, commentId).catch(() => undefined); }}
       onMenu={openCommentMenu}
       onReply={setReplyingTo}
     />
