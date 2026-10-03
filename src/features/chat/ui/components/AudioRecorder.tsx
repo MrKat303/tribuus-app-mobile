@@ -1,13 +1,13 @@
 import Feather from '@/components/ui/AppIcon';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition, type SharedValue, useReducedMotion } from 'react-native-reanimated';
 
 import { AppText } from '@/components/ui/AppText';
 import { formatDuration } from '@/features/chat/domain/message';
 import type { RecordingMode } from '@/features/chat/ui/hooks/useAudioRecording';
 import { radii, type ThemeColors, typography } from '@/theme/tokens';
 
-import { AudioMessage, AudioWaveform } from './AudioMessage';
+import { AudioMessage, LiveAudioWaveform } from './AudioMessage';
 
 export function AudioRecorder({
   audioDraft,
@@ -20,7 +20,7 @@ export function AudioRecorder({
   onTogglePause,
   ownBubbleBackground,
   recordingMode,
-  waveform,
+  liveWaveform,
 }: {
   audioDraft: { durationMs: number; uri: string; waveform: number[] } | null;
   colors: ThemeColors;
@@ -32,7 +32,7 @@ export function AudioRecorder({
   onTogglePause: () => void;
   ownBubbleBackground: string;
   recordingMode: RecordingMode;
-  waveform: readonly number[];
+  liveWaveform: SharedValue<number[]>;
 }) {
   const reduceMotion = useReducedMotion();
 
@@ -46,7 +46,7 @@ export function AudioRecorder({
           <Feather color={colors.primaryDark} name={recordingMode === 'recording' ? 'pause' : 'play'} size={17} />
         </Pressable>
         <View accessibilityLiveRegion="polite" style={styles.recordingBody}>
-          <AudioWaveform activeColor={recordingMode === 'recording' ? colors.danger : colors.primaryDark} barCount={26} inactiveColor={colors.border} progress={1} samples={waveform} />
+          <LiveAudioWaveform color={recordingMode === 'recording' ? colors.danger : colors.primaryDark} levels={liveWaveform} />
           <View style={styles.recordingMeta}>
             <Animated.View key={recordingMode} entering={FadeIn.duration(120)} style={[styles.recordingDot, { backgroundColor: recordingMode === 'recording' ? colors.danger : colors.textMuted }]} />
             <AppText style={[styles.recordingTime, { color: recordingMode === 'recording' ? colors.danger : colors.textMuted }]} variant="caption">

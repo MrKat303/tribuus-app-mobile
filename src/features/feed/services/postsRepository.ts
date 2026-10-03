@@ -133,6 +133,7 @@ function mapPost(
     audioName: row.audio_name ?? undefined,
     audioUri: getPublicMediaUrl(row.audio_path),
     author: author?.display_name ?? 'Vecino/a',
+    authorId: row.author_id,
     category: row.category,
     comments: [...comments],
     content: row.content,
@@ -389,6 +390,52 @@ export async function createFeedPost(draft: CommunityPostDraft, identity: FeedId
   }
 }
 
+type DeletablePostRow = {
+  audio_path: string | null;
+  author_id: string;
+  image_path: string | null;
+  post_images: { storage_path: string }[] | null;
+};
+
+export async function deleteFeedPost(postId: string) {
+  const numericPostId = Number(postId);
+  if (!Number.isSafeInteger(numericPostId) || numericPostId <= 0) {
+    throw new Error('La publicación todavía no está disponible para eliminar.');
+  }
+
+  const user = await ensureFeedIdentity({ displayName: '', initials: '', location: '' });
+  const postResult = await supabase
+    .from('posts')
+    .select('author_id, audio_path, image_path, post_images(storage_path)')
+    .eq('id', numericPostId)
+    .maybeSingle();
+  assertNoError(postResult.error);
+  const post = postResult.data as DeletablePostRow | null;
+  if (!post) return;
+  if (post.author_id !== user.id) throw new Error('Solo puedes eliminar tus propias publicaciones.');
+
+  const deleteResult = await supabase
+    .from('posts')
+    .delete()
+    .eq('id', numericPostId)
+    .eq('author_id', user.id)
+    .select('id')
+    .maybeSingle();
+  assertNoError(deleteResult.error);
+  if (!deleteResult.data) throw new Error('No fue posible eliminar la publicación.');
+
+  const mediaPaths = Array.from(new Set([
+    post.audio_path,
+    post.image_path,
+    ...(post.post_images ?? []).map(({ storage_path: storagePath }) => storagePath),
+  ].filter((path): path is string => Boolean(path))));
+  if (mediaPaths.length === 0) return;
+
+  // Database deletion is authoritative. Storage cleanup is best-effort so a
+  // transient media error cannot resurrect a post whose row was deleted.
+  await supabase.storage.from(POST_MEDIA_BUCKET).remove(mediaPaths).catch(() => undefined);
+}
+
 export async function setPostLiked(postId: string, liked: boolean) {
   const sessionResult = await supabase.auth.getSession();
   assertNoError(sessionResult.error);
@@ -463,7 +510,7 @@ export function subscribeToFeedChanges(onChange: () => void) {
         table: 'posts',
       }, onChange)
       .subscribe();
-  });
+  }).catch(() => undefined);
 
   return () => {
     active = false;

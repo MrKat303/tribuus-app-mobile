@@ -1,12 +1,15 @@
 import * as Haptics from 'expo-haptics';
 import { memo, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAuth } from '@/context/AuthContext';
+import { FormattedPostText } from '@/features/feed/components/FormattedPostText';
 import { POST_CONTENT_LIMIT, usePostComposer } from '@/features/feed/hooks/usePostComposer';
+import { parsePostText } from '@/features/feed/model/postFormatting';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 import type { CommunityPostDraft } from '@/types/community';
@@ -22,6 +25,7 @@ type InlineFeedComposerProps = {
 
 export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePost }: InlineFeedComposerProps) {
   const { colors: themeColors } = useAppAppearance();
+  const { profile } = useAuth();
   const styles = useStyles();
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -39,6 +43,10 @@ export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePos
     opacity: composerOpacity.get(),
     transform: [{ scale: composerScale.get() }],
   }));
+  const initials = profile?.initials
+    || profile?.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+    || 'V';
+  const formattedSegments = parsePostText(content);
 
   async function closeComposer() {
     await discard();
@@ -74,12 +82,43 @@ export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePos
   return (
     <Animated.View pointerEvents={publishPhase === 'idle' ? 'auto' : 'none'} style={[styles.composer, { backgroundColor: themeColors.surface, borderColor: open ? themeColors.primarySoft : themeColors.border }, open && styles.composerOpen, composerAnimatedStyle]}>
       <View style={[styles.inputRow, open && styles.inputRowOpen]}>
-        <View style={[styles.avatar, { backgroundColor: themeColors.successSoft }]}><AppText style={[styles.initials, { color: themeColors.text }]} variant="caption">JM</AppText></View>
+        <View style={[styles.avatar, { backgroundColor: themeColors.successSoft }]}><AppText style={[styles.initials, { color: themeColors.text }]} variant="caption">{initials}</AppText></View>
         <View style={[styles.inputShell, { backgroundColor: themeColors.input }, open && styles.inputShellOpen]}>
-          <TextInput accessibilityLabel="Contenido de la publicación" maxLength={POST_CONTENT_LIMIT} multiline onChangeText={setContent} onFocus={() => setOpen(true)} placeholder="Comparte algo con tu comunidad..." placeholderTextColor={themeColors.textMuted} style={[styles.input, { color: themeColors.text }, open && styles.inputOpen]} textAlignVertical="top" value={content} />
+          {content && Platform.OS !== 'android' ? (
+            <View pointerEvents="none" style={[styles.formattedInput, open && styles.formattedInputOpen]}>
+              <FormattedPostText showMarkers style={[styles.formattedInputText, { color: themeColors.text }]} value={content} />
+            </View>
+          ) : null}
+          <TextInput
+            accessibilityLabel="Contenido de la publicación"
+            cursorColor={themeColors.text}
+            maxLength={POST_CONTENT_LIMIT}
+            multiline
+            onChangeText={setContent}
+            onFocus={() => setOpen(true)}
+            placeholder="Comparte algo con tu comunidad..."
+            placeholderTextColor={themeColors.textMuted}
+            selectionColor={themeColors.primary}
+            style={[styles.input, { color: content && Platform.OS !== 'android' ? 'transparent' : themeColors.text }, open && styles.inputOpen]}
+            textAlignVertical="top"
+            value={Platform.OS === 'android' ? undefined : content}>
+            {Platform.OS === 'android' ? (
+              <Text>
+                {formattedSegments.map((segment, index) => segment.bold ? (
+                  <Text key={`${index}-${segment.text}`}>
+                    <Text style={styles.inputMarker}>*</Text>
+                    <Text style={styles.inputBold}>{segment.text}</Text>
+                    <Text style={styles.inputMarker}>*</Text>
+                  </Text>
+                ) : <Text key={`${index}-${segment.text}`}>{segment.text}</Text>)}
+              </Text>
+            ) : null}
+          </TextInput>
           {open ? <Pressable accessibilityLabel="Cerrar" disabled={publishPhase !== 'idle'} hitSlop={8} onPress={() => void closeComposer()} style={styles.close}><AppIcon color={themeColors.textMuted} name="x" size={17} /></Pressable> : null}
         </View>
       </View>
+
+      {open ? <AppText style={[styles.formatHint, { color: themeColors.textMuted }]} variant="caption">Usa *texto* para escribir en negrita.</AppText> : null}
 
       {open && images.length ? <View style={styles.imagePreview}><PostMediaGrid images={images} onRemove={removeImage} recyclingKey="composer" /></View> : null}
 
@@ -143,9 +182,11 @@ const useStyles = makeThemedStyles((colors) => ({
   inputRowOpen: { alignItems: 'flex-start' },
   avatar: { alignItems: 'center', backgroundColor: colors.successSoft, borderRadius: radii.pill, height: 42, justifyContent: 'center', width: 42 },
   initials: { color: colors.text, fontFamily: typography.bodySemiBold, fontSize: 10 },
-  inputShell: { alignItems: 'center', backgroundColor: colors.input, borderRadius: 16, flex: 1, flexDirection: 'row', minHeight: 48, paddingHorizontal: 14 },
+  inputShell: { alignItems: 'center', backgroundColor: colors.input, borderRadius: 16, flex: 1, flexDirection: 'row', minHeight: 48, paddingHorizontal: 14, position: 'relative' },
   inputShellOpen: { alignItems: 'flex-start', minHeight: 92, paddingRight: 4 },
   input: { color: colors.text, flex: 1, fontFamily: typography.body, fontSize: 14, lineHeight: 20, maxHeight: 140, minHeight: 46, paddingHorizontal: 0, paddingVertical: 11 },
+  inputBold: { fontFamily: typography.bodySemiBold, fontWeight: '600' },
+  inputMarker: { fontFamily: typography.body, fontWeight: '400', opacity: 0.42 },
   inputOpen: { minHeight: 88, paddingTop: 12 },
   close: { alignItems: 'center', height: 34, justifyContent: 'center', marginTop: 4, width: 34 },
   imagePreview: { marginTop: 10, position: 'relative' },
@@ -158,6 +199,10 @@ const useStyles = makeThemedStyles((colors) => ({
   eventEditor: { backgroundColor: colors.successSoft, borderColor: colors.border, borderWidth: 1 },
   pollInput: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth, color: colors.text, fontFamily: typography.body, fontSize: 13, minHeight: 40, paddingHorizontal: 11, paddingVertical: 7 },
   footer: { borderTopColor: 'rgba(60,60,67,0.10)', borderTopWidth: StyleSheet.hairlineWidth, gap: 5, marginTop: 9, paddingTop: 7 },
+  formattedInput: { left: 14, position: 'absolute', right: 14, top: 11 },
+  formattedInputOpen: { right: 38, top: 12 },
+  formattedInputText: { fontFamily: typography.body, fontSize: 14, lineHeight: 20 },
+  formatHint: { fontSize: 9, marginLeft: 52, marginTop: 3 },
   footerClosed: { marginTop: 9, minHeight: 42, paddingTop: 7 },
   openTools: { alignItems: 'center', flexDirection: 'row', minHeight: 40, width: '100%' },
   openTool: { alignItems: 'center', borderRadius: 9, flex: 1, gap: 2, justifyContent: 'center', minHeight: 46, minWidth: 0, paddingHorizontal: 2 },

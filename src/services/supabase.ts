@@ -3,16 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+import { minimumRuntimeConfiguration } from '@/config/runtime';
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error(
-    'Faltan EXPO_PUBLIC_SUPABASE_URL o EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY en el entorno.',
-  );
-}
+const supabaseConfiguration = minimumRuntimeConfiguration.configuration ?? {
+  supabasePublishableKey: 'configuration-unavailable',
+  supabaseUrl: 'http://127.0.0.1:54321',
+};
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+export const supabase = createClient(supabaseConfiguration.supabaseUrl, supabaseConfiguration.supabasePublishableKey, {
   auth: {
     ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
     autoRefreshToken: true,
@@ -40,4 +38,3 @@ export function registerSupabaseAuthAutoRefresh() {
     supabase.auth.stopAutoRefresh();
   };
 }
-

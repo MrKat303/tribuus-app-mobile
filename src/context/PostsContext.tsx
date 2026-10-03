@@ -1,11 +1,11 @@
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProfile } from '@/context/ProfileContext';
-import { demoPosts } from '@/data/demo-community';
-import { createCommunityPost, postsReducer } from '@/features/feed/model/posts';
+import { postsReducer } from '@/features/feed/model/posts';
 import {
   createFeedPost,
   createPostComment,
+  deleteFeedPost,
   ensureFeedIdentity,
   type FeedCursor,
   type FeedIdentity,
@@ -21,6 +21,7 @@ import type { CommunityPost, CommunityPostDraft } from '@/types/community';
 type PostsContextValue = {
   addComment: (postId: string, content: string, replyToCommentId?: string) => Promise<void>;
   addPost: (draft: CommunityPostDraft) => Promise<string>;
+  deletePost: (postId: string) => Promise<void>;
   error: string | null;
   hasMore: boolean;
   isLoading: boolean;
@@ -42,11 +43,12 @@ function errorMessage(error: unknown) {
 
 export function PostsProvider({ children }: PropsWithChildren) {
   const { profile } = useProfile();
-  const [posts, setPosts] = useState<CommunityPost[]>(demoPosts);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [cursor, setCursor] = useState<FeedCursor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isPublishingPost = useRef(false);
   const identity = useMemo<FeedIdentity>(() => ({
     displayName: profile.name,
     initials: profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'V',
@@ -82,6 +84,7 @@ export function PostsProvider({ children }: PropsWithChildren) {
   }, [syncFirstPage]);
 
   useEffect(() => subscribeToFeedChanges(() => {
+    if (isPublishingPost.current) return;
     void syncFirstPage().catch(() => undefined);
   }), [syncFirstPage]);
 
@@ -104,13 +107,7 @@ export function PostsProvider({ children }: PropsWithChildren) {
   }, [cursor, isLoadingMore]);
 
   const addPost = useCallback(async (draft: CommunityPostDraft) => {
-    const optimisticId = `pending-post-${Date.now()}`;
-    setPosts((current) => [createCommunityPost(draft, optimisticId, {
-      author: identity.displayName,
-      initials: identity.initials,
-      location: identity.location,
-    }), ...current]);
-
+    isPublishingPost.current = true;
     try {
       const persistedId = String(await createFeedPost(draft, identity));
       const page = await listFeedPosts();
@@ -119,11 +116,33 @@ export function PostsProvider({ children }: PropsWithChildren) {
       setError(null);
       return persistedId;
     } catch (cause) {
-      setPosts((current) => current.filter((post) => post.id !== optimisticId));
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      isPublishingPost.current = false;
+    }
+  }, [identity]);
+
+  const deletePost = useCallback(async (postId: string) => {
+    const deletedIndex = posts.findIndex((post) => post.id === postId);
+    const deletedPost = posts[deletedIndex];
+    if (!deletedPost) return;
+
+    setPosts((current) => postsReducer(current, { postId, type: 'postDeleted' }));
+    try {
+      await deleteFeedPost(postId);
+      setError(null);
+    } catch (cause) {
+      setPosts((current) => {
+        if (current.some((post) => post.id === postId)) return current;
+        const restored = [...current];
+        restored.splice(Math.min(Math.max(deletedIndex, 0), restored.length), 0, deletedPost);
+        return restored;
+      });
       setError(errorMessage(cause));
       throw cause;
     }
-  }, [identity]);
+  }, [posts]);
 
   const addComment = useCallback(async (postId: string, content: string, replyToCommentId?: string) => {
     const optimisticId = `pending-comment-${Date.now()}`;
@@ -226,6 +245,7 @@ export function PostsProvider({ children }: PropsWithChildren) {
   const value = useMemo(() => ({
     addComment,
     addPost,
+    deletePost,
     error,
     hasMore: cursor !== null,
     isLoading,
@@ -238,7 +258,7 @@ export function PostsProvider({ children }: PropsWithChildren) {
     toggleCommentLike,
     toggleLike,
   }), [
-    addComment, addPost, cursor, error, isLoading, isLoadingMore, loadMore, posts,
+    addComment, addPost, cursor, deletePost, error, isLoading, isLoadingMore, loadMore, posts,
     refresh, selectPollOption, toggleBookmark, toggleCommentLike, toggleLike,
   ]);
 

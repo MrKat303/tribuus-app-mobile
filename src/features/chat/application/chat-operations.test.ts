@@ -1,5 +1,11 @@
 import { removeMessage } from './delete-message';
-import { appendWaveformSample } from './record-audio';
+import {
+  appendMeteringSample,
+  createWaveformRingBuffer,
+  normalizeMetering,
+  persistedWaveformSnapshot,
+  readWaveformSamples,
+} from './record-audio';
 import { createOutgoingAudioMessage, createOutgoingMessage } from './send-message';
 
 describe('chat application operations', () => {
@@ -49,13 +55,38 @@ describe('chat application operations', () => {
     expect(messages).toHaveLength(2);
   });
 
-  it('bounds waveform history during long recordings', () => {
-    let samples: number[] = [];
+  it('bounds waveform history in a fixed-size circular buffer', () => {
+    const buffer = createWaveformRingBuffer(40);
     for (let index = 0; index < 500; index += 1) {
-      samples = appendWaveformSample(samples, -12, 40);
+      appendMeteringSample(buffer, -12);
+    }
+    const samples = readWaveformSamples(buffer);
+
+    expect(samples).toHaveLength(40);
+    expect(samples.every((sample) => sample >= 0.06 && sample <= 1)).toBe(true);
+  });
+
+  it('keeps the newest circular-buffer samples in chronological order', () => {
+    const buffer = createWaveformRingBuffer(4);
+    const metering = [-40, -30, -20, -10, 0];
+    metering.forEach((sample) => appendMeteringSample(buffer, sample));
+
+    const samples = readWaveformSamples(buffer);
+    const expected = metering.slice(-4).map(normalizeMetering);
+
+    expect(samples).toHaveLength(expected.length);
+    samples.forEach((sample, index) => expect(sample).toBeCloseTo(expected[index], 5));
+  });
+
+  it('persists a stable downsampled waveform instead of raw recording history', () => {
+    const buffer = createWaveformRingBuffer(80);
+    for (let index = 0; index < 80; index += 1) {
+      appendMeteringSample(buffer, index % 2 === 0 ? -40 : -4);
     }
 
-    expect(samples.length).toBeLessThanOrEqual(40);
-    expect(samples.every((sample) => sample >= 0.06 && sample <= 1)).toBe(true);
+    const persisted = persistedWaveformSnapshot(buffer);
+
+    expect(persisted).toHaveLength(64);
+    expect(persisted.every((sample) => sample >= 0.06 && sample <= 1)).toBe(true);
   });
 });

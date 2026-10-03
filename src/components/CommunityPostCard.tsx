@@ -4,7 +4,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRecyclingState } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { memo, useEffect, useRef } from 'react';
-import { Alert, Platform, Pressable, Share, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, Share, StyleSheet, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeInUp,
@@ -18,7 +18,9 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAuth } from '@/context/AuthContext';
 import { usePosts } from '@/context/PostsContext';
+import { FormattedPostText } from '@/features/feed/components/FormattedPostText';
 import { PostComments } from '@/features/feed/components/PostComments';
 import { PostMediaGrid } from '@/features/feed/components/PostMediaGrid';
 import { PostPoll } from '@/features/feed/components/PostPoll';
@@ -43,8 +45,9 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   const { colors: themeColors, isDark } = useAppAppearance();
   const styles = useStyles();
   const router = useRouter();
+  const { session } = useAuth();
   const reduceMotion = useReducedMotion();
-  const { selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = usePosts();
+  const { deletePost, selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = usePosts();
   const audioPlayerRef = useRef<import('expo-audio').AudioPlayer | null>(null);
   const visiblePostIdRef = useRef(post.id);
   visiblePostIdRef.current = post.id;
@@ -65,6 +68,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   const selectedPollOption = post.selectedPollOptionId;
   const likeCount = post.likes;
   const postCategory = categoryStyle[post.category];
+  const isOwnPost = Boolean(session?.user.id && post.authorId === session.user.id);
   const feedImageUri = post.imageVariants?.feed.uri ?? post.imageUri;
   const mediaImages = post.images?.length
     ? post.images
@@ -108,6 +112,50 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
     await Share.share({ message: [post.title, post.content, `— ${post.author}`].filter(Boolean).join('\n\n') });
   }
 
+  function confirmDelete() {
+    Alert.alert(
+      'Eliminar publicación',
+      'Esta acción no se puede deshacer.',
+      [
+        { style: 'cancel', text: 'Cancelar' },
+        {
+          onPress: () => {
+            void deletePost(post.id).catch((error) => {
+              Alert.alert('No se pudo eliminar', error instanceof Error ? error.message : 'Intenta nuevamente.');
+            });
+          },
+          style: 'destructive',
+          text: 'Eliminar',
+        },
+      ],
+    );
+  }
+
+  function showPostOptions() {
+    const options = isOwnPost
+      ? ['Compartir', 'Eliminar publicación', 'Cancelar']
+      : ['Compartir', 'Cancelar'];
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions({
+        cancelButtonIndex: options.length - 1,
+        destructiveButtonIndex: isOwnPost ? 1 : undefined,
+        options,
+        title: 'Opciones de publicación',
+      }, (selectedIndex) => {
+        if (selectedIndex === 0) void sharePost();
+        if (isOwnPost && selectedIndex === 1) confirmDelete();
+      });
+      return;
+    }
+
+    Alert.alert('Opciones de publicación', post.author, [
+      { onPress: () => { void sharePost(); }, text: 'Compartir' },
+      ...(isOwnPost ? [{ onPress: confirmDelete, style: 'destructive' as const, text: 'Eliminar publicación' }] : []),
+      { style: 'cancel', text: 'Cancelar' },
+    ]);
+  }
+
   async function toggleAudio() {
     try {
       if (audioPlayerRef.current) {
@@ -147,13 +195,13 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
             <AppText style={[styles.categoryText, { color: postCategory.color }]} variant="caption">{postCategory.label}</AppText>
           </View>
         )}
-        <Pressable accessibilityLabel="Más opciones" accessibilityRole="button" hitSlop={10}>
+        <Pressable accessibilityLabel="Más opciones" accessibilityRole="button" hitSlop={10} onPress={showPostOptions}>
           <Feather color={themeColors.textMuted} name="more-horizontal" size={17} />
         </Pressable>
       </View>
 
       {post.title ? <AppText style={[styles.postTitle]} variant="bodyStrong">{post.title}</AppText> : null}
-      {post.content ? <AppText style={[styles.postContent, { color: themeColors.text }]}>{post.content}</AppText> : null}
+      {post.content ? <FormattedPostText style={[styles.postContent, { color: themeColors.text }]} value={post.content} /> : null}
 
       {mediaImages.length ? (
         <View style={[styles.media]}>

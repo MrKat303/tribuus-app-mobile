@@ -53,6 +53,13 @@ describe('posts model', () => {
     expect(bookmarked[0]).toMatchObject({ isBookmarked: true, isLiked: true, likes: 4 });
   });
 
+  test('deletes only the requested post from local state', () => {
+    const secondPost = { ...post, id: 'post-2' };
+    const result = postsReducer([post, secondPost], { postId: post.id, type: 'postDeleted' });
+
+    expect(result).toEqual([secondPost]);
+  });
+
   test('moves a poll vote without double counting', () => {
     const selectedA = postsReducer([post], { type: 'pollOptionSelected', postId: post.id, optionId: 'a' });
     const selectedAAgain = postsReducer(selectedA, { type: 'pollOptionSelected', postId: post.id, optionId: 'a' });

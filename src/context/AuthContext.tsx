@@ -152,7 +152,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (active) setIsLoading(false);
       });
 
-    const authSubscription = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const authSubscription = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // getSession() es la única fuente del bootstrap inicial. Evita duplicar la carga
+      // de perfil cuando Supabase emite INITIAL_SESSION al registrar el listener.
+      if (event === 'INITIAL_SESSION') return;
       if (!active) return;
       setSession(nextSession);
       setIsLoading(true);

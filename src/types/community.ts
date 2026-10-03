@@ -43,6 +43,7 @@ export type CommunityPostImage = {
 export type CommunityPost = {
   id: string;
   author: string;
+  authorId?: string;
   category: CommunityPostCategory;
   comments: CommunityComment[];
   content: string;

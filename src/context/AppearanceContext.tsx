@@ -1,10 +1,10 @@
 import type { PropsWithChildren } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Platform, TurboModuleRegistry } from 'react-native';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 import { darkColors, lightColors, type ThemeColors } from '@/theme/tokens';
+import { type AppThemeMode, persistThemeMode } from '@/theme/themeStorage';
 
-export type AppThemeMode = 'light' | 'dark';
+export type { AppThemeMode } from '@/theme/themeStorage';
 
 type AppearanceContextValue = {
   colors: ThemeColors;
@@ -13,58 +13,16 @@ type AppearanceContextValue = {
   setThemeMode: (themeMode: AppThemeMode) => void;
 };
 
-const STORAGE_KEY = '@tribuus/theme-mode';
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
-let sessionThemeMode: AppThemeMode = 'light';
 
-async function getOptionalStorage() {
-  if (Platform.OS !== 'web' && !TurboModuleRegistry.get('RNCAsyncStorage')) return null;
+type AppearanceProviderProps = PropsWithChildren<{
+  initialThemeMode: AppThemeMode;
+}>;
 
-  try {
-    return (await import('@react-native-async-storage/async-storage')).default;
-  } catch {
-    return null;
-  }
-}
-
-async function readStoredThemeMode() {
-  const storage = await getOptionalStorage();
-  if (!storage) return null;
-
-  try {
-    return await storage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-async function persistThemeMode(themeMode: AppThemeMode) {
-  const storage = await getOptionalStorage();
-  if (!storage) return;
-
-  try {
-    await storage.setItem(STORAGE_KEY, themeMode);
-  } catch {
-    // El modo oscuro sigue funcionando en memoria si el build aún no incluye el módulo nativo.
-  }
-}
-
-export function AppearanceProvider({ children }: PropsWithChildren) {
-  const [themeMode, setThemeModeState] = useState<AppThemeMode>(sessionThemeMode);
-
-  useEffect(() => {
-    void readStoredThemeMode()
-      .then((storedThemeMode) => {
-        if (storedThemeMode === 'light' || storedThemeMode === 'dark') {
-          sessionThemeMode = storedThemeMode;
-          setThemeModeState(storedThemeMode);
-        }
-      })
-      .catch(() => undefined);
-  }, []);
+export function AppearanceProvider({ children, initialThemeMode }: AppearanceProviderProps) {
+  const [themeMode, setThemeModeState] = useState<AppThemeMode>(initialThemeMode);
 
   const setThemeMode = useCallback((nextThemeMode: AppThemeMode) => {
-    sessionThemeMode = nextThemeMode;
     setThemeModeState(nextThemeMode);
     void persistThemeMode(nextThemeMode);
   }, []);

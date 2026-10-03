@@ -69,17 +69,48 @@ export function FeedScreen() {
         onOpenProfile={openProfile}
         onOpenWallet={openWallet}
       />
-      {error ? <View style={styles.errorBanner}><AppText style={styles.errorText} variant="caption">Sin conexión con el feed · mostrando datos disponibles</AppText></View> : null}
+      {error && posts.length > 0 ? <View style={styles.errorBanner}><AppText style={styles.errorText} variant="caption">No pudimos actualizar el feed · desliza para reintentar</AppText></View> : null}
     </>
-  ), [activeFilter, createPost, error, openNotifications, openProfile, openWallet, styles.errorBanner, styles.errorText]);
+  ), [activeFilter, createPost, error, openNotifications, openProfile, openWallet, posts.length, styles.errorBanner, styles.errorText]);
 
-  const empty = useMemo(() => (
-    <View style={styles.emptyState}>
-      <AppIcon color={colors.textMuted} name="search" size={24} />
-      <AppText variant="bodyStrong">No encontramos publicaciones</AppText>
-      <AppText style={styles.emptyCopy} variant="caption">Prueba con otra búsqueda o categoría.</AppText>
-    </View>
-  ), [colors.textMuted, styles.emptyCopy, styles.emptyState]);
+  const empty = useMemo(() => {
+    if (isLoading) {
+      return (
+        <View accessibilityLiveRegion="polite" style={styles.emptyState}>
+          <ActivityIndicator color={colors.primaryDark} />
+          <AppText style={styles.emptyCopy} variant="caption">Cargando publicaciones…</AppText>
+        </View>
+      );
+    }
+
+    if (error && posts.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <AppIcon color={colors.textMuted} name="wifi-off" size={24} />
+          <AppText variant="bodyStrong">No pudimos cargar el feed</AppText>
+          <AppText style={styles.emptyCopy} variant="caption">Revisa tu conexión y desliza hacia abajo para reintentar.</AppText>
+        </View>
+      );
+    }
+
+    if (posts.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <AppIcon color={colors.textMuted} name="message-square" size={24} />
+          <AppText variant="bodyStrong">Aún no hay publicaciones</AppText>
+          <AppText style={styles.emptyCopy} variant="caption">Sé la primera persona en compartir algo con tu comunidad.</AppText>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <AppIcon color={colors.textMuted} name="filter" size={24} />
+        <AppText variant="bodyStrong">No hay publicaciones en esta categoría</AppText>
+        <AppText style={styles.emptyCopy} variant="caption">Selecciona otra categoría para seguir explorando.</AppText>
+      </View>
+    );
+  }, [colors.primaryDark, colors.textMuted, error, isLoading, posts.length, styles.emptyCopy, styles.emptyState]);
 
   return (
     <Screen>

@@ -146,7 +146,7 @@ export function Composer({
           onTogglePause={recording.togglePause}
           ownBubbleBackground={ownBubbleBackground}
           recordingMode={recording.recordingMode}
-          waveform={recording.waveform}
+          liveWaveform={recording.liveWaveform}
         />
       ) : (
         <View style={[styles.composer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
