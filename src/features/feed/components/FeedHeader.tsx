@@ -5,6 +5,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/context/AppearanceContext';
+import { useProfile } from '@/context/ProfileContext';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 
@@ -14,7 +15,7 @@ import { InlineFeedComposer, type InlinePostDraft } from './InlineFeedComposer';
 type FeedHeaderProps = {
   activeFilter: FeedFilter;
   onChangeFilter: (filter: FeedFilter) => void;
-  onCreatePost: (draft: InlinePostDraft) => void;
+  onCreatePost: (draft: InlinePostDraft) => Promise<void>;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
   onOpenWallet: () => void;
@@ -22,7 +23,9 @@ type FeedHeaderProps = {
 
 export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilter, onCreatePost, onOpenNotifications, onOpenProfile, onOpenWallet }: FeedHeaderProps) {
   const { colors: themeColors } = useAppAppearance();
+  const { profile } = useProfile();
   const styles = useStyles();
+  const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'V';
 
   return (
     <>
@@ -37,7 +40,7 @@ export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilte
             <View style={[styles.notificationDot, { backgroundColor: themeColors.warning, borderColor: themeColors.surface }]} />
           </Pressable>
           <Pressable accessibilityLabel="Abrir mi perfil" accessibilityRole="button" onPress={onOpenProfile} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}>
-            <AppText style={styles.profileInitials} variant="caption">JM</AppText>
+            <AppText style={styles.profileInitials} variant="caption">{initials}</AppText>
           </Pressable>
         </View>
       </View>
@@ -60,7 +63,7 @@ export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilte
         <AppText style={styles.feedTitle} variant="heading">Publicaciones cerca de ti</AppText>
         <Pressable accessibilityLabel="Cambiar comuna" hitSlop={8} style={styles.feedLocation}>
           <AppIcon color={themeColors.primaryDark} name="navigation" size={14} />
-          <AppText style={[styles.feedLocationText, { color: themeColors.textMuted }]} variant="caption">Providencia</AppText>
+          <AppText style={[styles.feedLocationText, { color: themeColors.textMuted }]} variant="caption">{profile.location}</AppText>
           <AppIcon color={themeColors.textMuted} name="chevron-down" size={13} />
         </Pressable>
       </View>

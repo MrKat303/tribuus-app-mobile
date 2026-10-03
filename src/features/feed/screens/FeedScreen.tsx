@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommunityPostCard } from '@/components/CommunityPostCard';
@@ -24,7 +24,7 @@ export function FeedScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const { addPost, posts } = usePosts();
+  const { addPost, error, isLoading, isLoadingMore, loadMore, posts, refresh } = usePosts();
   const listRef = useRef<FlashListRef<CommunityPost>>(null);
   const newPostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeFilter, setActiveFilter] = useState<FeedFilter>('todo');
@@ -37,8 +37,8 @@ export function FeedScreen() {
   const openProfile = useCallback(() => router.push('/(tabs)/perfil'), [router]);
   const openNotifications = useCallback(() => router.push('/notificaciones'), [router]);
   const openWallet = useCallback(() => router.push('/community-wallet'), [router]);
-  const createPost = useCallback((draft: CommunityPostDraft) => {
-    const postId = addPost(draft);
+  const createPost = useCallback(async (draft: CommunityPostDraft) => {
+    const postId = await addPost(draft);
     setNewPostId(postId);
     setActiveFilter('todo');
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: true, offset: 0 }));
@@ -60,15 +60,18 @@ export function FeedScreen() {
   }, []);
 
   const header = useMemo(() => (
-    <FeedHeader
-      activeFilter={activeFilter}
-      onChangeFilter={setActiveFilter}
-      onCreatePost={createPost}
-      onOpenNotifications={openNotifications}
-      onOpenProfile={openProfile}
-      onOpenWallet={openWallet}
-    />
-  ), [activeFilter, createPost, openNotifications, openProfile, openWallet]);
+    <>
+      <FeedHeader
+        activeFilter={activeFilter}
+        onChangeFilter={setActiveFilter}
+        onCreatePost={createPost}
+        onOpenNotifications={openNotifications}
+        onOpenProfile={openProfile}
+        onOpenWallet={openWallet}
+      />
+      {error ? <View style={styles.errorBanner}><AppText style={styles.errorText} variant="caption">Sin conexión con el feed · mostrando datos disponibles</AppText></View> : null}
+    </>
+  ), [activeFilter, createPost, error, openNotifications, openProfile, openWallet, styles.errorBanner, styles.errorText]);
 
   const empty = useMemo(() => (
     <View style={styles.emptyState}>
@@ -90,9 +93,13 @@ export function FeedScreen() {
         keyboardShouldPersistTaps="handled"
         keyExtractor={(post) => post.id}
         ListEmptyComponent={empty}
+        ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primaryDark} style={styles.loadingMore} /> : null}
         ListHeaderComponent={header}
         maxItemsInRecyclePool={24}
         removeClippedSubviews={Platform.OS === 'android'}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.4}
+        refreshControl={<RefreshControl colors={[colors.primaryDark]} onRefresh={() => void refresh().catch(() => undefined)} refreshing={isLoading} tintColor={colors.primaryDark} />}
         renderItem={renderPost}
         showsVerticalScrollIndicator={false}
         style={styles.list}
@@ -108,4 +115,7 @@ const useStyles = makeThemedStyles((colors) => ({
   separator: { height: 6 },
   emptyState: { alignItems: 'center', backgroundColor: colors.surfaceMuted, borderRadius: radii.lg, gap: spacing.sm, marginTop: spacing.sm, padding: spacing.xxl },
   emptyCopy: { textAlign: 'center' },
+  errorBanner: { backgroundColor: colors.warmSoft, borderRadius: radii.sm, marginTop: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  errorText: { color: colors.text, textAlign: 'center' },
+  loadingMore: { paddingVertical: spacing.lg },
 }));

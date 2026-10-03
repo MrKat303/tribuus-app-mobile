@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { memo, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/ui/AppIcon';
@@ -17,7 +17,7 @@ export type InlinePostDraft = CommunityPostDraft;
 type PublishPhase = 'idle' | 'publishing' | 'success';
 
 type InlineFeedComposerProps = {
-  onCreatePost: (draft: InlinePostDraft) => void;
+  onCreatePost: (draft: InlinePostDraft) => Promise<void>;
 };
 
 export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePost }: InlineFeedComposerProps) {
@@ -52,18 +52,19 @@ export const InlineFeedComposer = memo(function InlineFeedComposer({ onCreatePos
     setPublishPhase('publishing');
     if (!reduceMotion) composerScale.set(withTiming(0.98, { duration: 180 }));
     composerOpacity.set(withTiming(0.88, { duration: 180 }));
-    await new Promise((resolve) => setTimeout(resolve, 230));
-
-    setPublishPhase('success');
-    composerOpacity.set(withTiming(1, { duration: 140 }));
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-    await new Promise((resolve) => setTimeout(resolve, 420));
-
-    composerOpacity.set(withTiming(0, { duration: 160 }));
-    await new Promise((resolve) => setTimeout(resolve, 165));
-    if (submit(onCreatePost)) {
-      setOpen(false);
-      Keyboard.dismiss();
+    try {
+      if (await submit(onCreatePost)) {
+        setPublishPhase('success');
+        composerOpacity.set(withTiming(1, { duration: 140 }));
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 420));
+        composerOpacity.set(withTiming(0, { duration: 160 }));
+        await new Promise((resolve) => setTimeout(resolve, 165));
+        setOpen(false);
+        Keyboard.dismiss();
+      }
+    } catch (error) {
+      Alert.alert('No se pudo publicar', error instanceof Error ? error.message : 'Intenta nuevamente.');
     }
     setPublishPhase('idle');
     composerScale.set(1);

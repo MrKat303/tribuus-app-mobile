@@ -188,7 +188,7 @@ export function usePostComposer() {
     setPollOptions((current) => current.length > 2 ? current.filter((_, optionIndex) => optionIndex !== index) : current);
   }, []);
 
-  const submit = useCallback((onSubmit: (draft: CommunityPostDraft) => void) => {
+  const submit = useCallback(async (onSubmit: (draft: CommunityPostDraft) => unknown | Promise<unknown>) => {
     if (!canPublish) return false;
     if (pollEnabled && !hasPoll) {
       Alert.alert('Completa la encuesta', 'Escribe una pregunta y al menos dos opciones.');
@@ -199,7 +199,7 @@ export function usePostComposer() {
       return false;
     }
 
-    onSubmit({
+    await onSubmit({
       audioName: audioName ?? undefined,
       audioUri: audioUri ?? undefined,
       category: eventEnabled ? 'evento' : category,
