@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { createPostImageVariants } from '@/features/feed/media/createPostImageVariants';
-import type { CommunityPostCategory, CommunityPostDraft, CommunityPostImage } from '@/types/community';
+import type { CommunityPostCategory, CommunityPostDraft, CommunityPostImage } from '@/features/feed/model/community';
 
 export const POST_CONTENT_LIMIT = 350;
 export const MAX_POLL_OPTIONS = 4;

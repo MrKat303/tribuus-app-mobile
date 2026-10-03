@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useThemeColors } from '@/context/AppearanceContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
 import { spacing } from '@/theme/tokens';
 
 export function Card({ style, ...props }: ComponentProps<typeof View>) {

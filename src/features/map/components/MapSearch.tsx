@@ -3,13 +3,14 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import type { MapSearchSuggestion } from '@/services/mapboxSearch';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import type { MapSearchSuggestion } from '@/features/places/data/mapboxSearch';
 import type { TribuusPlace } from '@/features/places/model/place';
+import { distanceInKm, type Coordinate } from '@/shared/geo';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 
-import { distanceInKm, type Coordinate, searchIcon } from '../model/map';
+import { searchIcon } from '../ui/mapPresentation';
 
 type MapSearchProps = {
   focused: boolean;

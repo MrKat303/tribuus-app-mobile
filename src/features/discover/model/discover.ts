@@ -1,9 +1,4 @@
-import type { ComponentProps } from 'react';
-
-import type { AppIcon as AppIconComponent } from '@/components/ui/AppIcon';
-
 export type DiscoverKind = 'food' | 'nightlife' | 'panorama' | 'place';
-export type DiscoverIcon = ComponentProps<typeof AppIconComponent>['name'];
 
 export type DiscoverItem = {
   address?: string;

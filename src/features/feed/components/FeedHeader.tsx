@@ -4,12 +4,13 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { BrandMark } from '@/components/BrandMark';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { useProfile } from '@/context/ProfileContext';
+import { useAuth } from '@/features/auth/application/AuthProvider';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 
-import { feedFilters, type FeedFilter } from '../model/feed';
+import type { FeedFilter } from '../model/feed';
+import { feedFilters } from '../ui/feedPresentation';
 import { InlineFeedComposer, type InlinePostDraft } from './InlineFeedComposer';
 
 type FeedHeaderProps = {
@@ -23,9 +24,9 @@ type FeedHeaderProps = {
 
 export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilter, onCreatePost, onOpenNotifications, onOpenProfile, onOpenWallet }: FeedHeaderProps) {
   const { colors: themeColors } = useAppAppearance();
-  const { profile } = useProfile();
+  const { profile } = useAuth();
   const styles = useStyles();
-  const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'V';
+  const initials = profile?.initials || 'V';
 
   return (
     <>
@@ -63,7 +64,7 @@ export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilte
         <AppText style={styles.feedTitle} variant="heading">Publicaciones cerca de ti</AppText>
         <Pressable accessibilityLabel="Cambiar comuna" hitSlop={8} style={styles.feedLocation}>
           <AppIcon color={themeColors.primaryDark} name="navigation" size={14} />
-          <AppText style={[styles.feedLocationText, { color: themeColors.textMuted }]} variant="caption">{profile.location}</AppText>
+          <AppText style={[styles.feedLocationText, { color: themeColors.textMuted }]} variant="caption">{profile?.location ?? 'Tu comunidad'}</AppText>
           <AppIcon color={themeColors.textMuted} name="chevron-down" size={13} />
         </Pressable>
       </View>

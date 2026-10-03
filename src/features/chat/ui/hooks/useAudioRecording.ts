@@ -8,11 +8,23 @@ import {
 import { File } from 'expo-file-system';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 
-import { appendWaveformSample } from '@/features/chat/application/record-audio';
+import {
+  appendMeteringSample,
+  createWaveformRingBuffer,
+  LIVE_WAVEFORM_BAR_COUNT,
+  liveWaveformSnapshot,
+  persistedWaveformSnapshot,
+  resetWaveformRingBuffer,
+} from '@/features/chat/application/record-audio';
 import type { AudioDraft } from '@/features/chat/domain/message';
 
 export type RecordingMode = 'paused' | 'recording' | null;
+
+function emptyLiveWaveform() {
+  return Array.from({ length: LIVE_WAVEFORM_BAR_COUNT }, () => 0.12);
+}
 
 function deleteLocalAudio(uri: string) {
   try {
@@ -29,17 +41,13 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
     directory: 'document',
     isMeteringEnabled: true,
   });
-  const recorderState = useAudioRecorderState(recorder, 100);
-  const latestMetering = useRef<number | undefined>(undefined);
+  const recorderState = useAudioRecorderState(recorder, 200);
+  const waveformBuffer = useRef(createWaveformRingBuffer());
+  const liveWaveform = useSharedValue(emptyLiveWaveform());
   const canRecord = useRef(false);
   const draftUri = useRef<string | null>(null);
   const [audioDraft, setAudioDraft] = useState<AudioDraft | null>(null);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>(null);
-  const [waveform, setWaveform] = useState<number[]>([]);
-
-  useEffect(() => {
-    latestMetering.current = recorderState.metering;
-  }, [recorderState.metering]);
 
   useEffect(() => {
     canRecord.current = recorderState.canRecord;
@@ -52,17 +60,10 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
   }, [recorder]);
 
   useEffect(() => {
-    if (recordingMode !== 'recording') return;
-
-    const meterInterval = setInterval(() => {
-      const metering = latestMetering.current;
-      if (typeof metering === 'number') {
-        setWaveform((current) => appendWaveformSample(current, metering));
-      }
-    }, 100);
-
-    return () => clearInterval(meterInterval);
-  }, [recordingMode]);
+    if (recordingMode !== 'recording' || typeof recorderState.metering !== 'number') return;
+    appendMeteringSample(waveformBuffer.current, recorderState.metering);
+    liveWaveform.set(liveWaveformSnapshot(waveformBuffer.current));
+  }, [liveWaveform, recorderState.metering, recordingMode]);
 
   const start = useCallback(async () => {
     try {
@@ -73,7 +74,8 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
       }
 
       Keyboard.dismiss();
-      setWaveform([]);
+      resetWaveformRingBuffer(waveformBuffer.current);
+      liveWaveform.set(emptyLiveWaveform());
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -84,7 +86,7 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       Alert.alert('No pudimos grabar', 'Intenta nuevamente en unos segundos.');
     }
-  }, [onImpact, recorder]);
+  }, [liveWaveform, onImpact, recorder]);
 
   const togglePause = useCallback(() => {
     if (recordingMode === 'recording') {
@@ -104,14 +106,16 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
       if (discardedUri) deleteLocalAudio(discardedUri);
     } finally {
       setRecordingMode(null);
-      setWaveform([]);
+      resetWaveformRingBuffer(waveformBuffer.current);
+      liveWaveform.set(emptyLiveWaveform());
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
     }
-  }, [recorder, recorderState.canRecord]);
+  }, [liveWaveform, recorder, recorderState.canRecord]);
 
   const finish = useCallback(async () => {
     try {
       const durationMs = recorderState.durationMillis;
+      const waveform = persistedWaveformSnapshot(waveformBuffer.current);
       await recorder.stop();
       const uri = recorder.uri;
       setRecordingMode(null);
@@ -119,20 +123,22 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
 
       if (!uri || durationMs < 250) {
         if (uri) deleteLocalAudio(uri);
-        setWaveform([]);
+        resetWaveformRingBuffer(waveformBuffer.current);
+        liveWaveform.set(emptyLiveWaveform());
         return;
       }
 
       draftUri.current = uri;
-      setAudioDraft({ durationMs, uri, waveform: waveform.length ? waveform : [0.12] });
-      setWaveform([]);
+      setAudioDraft({ durationMs, uri, waveform });
+      resetWaveformRingBuffer(waveformBuffer.current);
+      liveWaveform.set(emptyLiveWaveform());
       onImpact();
     } catch {
       setRecordingMode(null);
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
       Alert.alert('No pudimos guardar el audio', 'Intenta grabarlo nuevamente.');
     }
-  }, [onImpact, recorder, recorderState.durationMillis, waveform]);
+  }, [liveWaveform, onImpact, recorder, recorderState.durationMillis]);
 
   const deleteDraft = useCallback(() => {
     if (!audioDraft) return;
@@ -156,9 +162,9 @@ export function useAudioRecording(onImpact: () => void, onSelection: () => void)
     deleteDraft,
     durationMillis: recorderState.durationMillis,
     finish,
+    liveWaveform,
     recordingMode,
     start,
     togglePause,
-    waveform,
   };
 }

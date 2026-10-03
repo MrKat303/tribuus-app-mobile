@@ -75,6 +75,7 @@ copilot-instructions.md
 **/.cursor/
 .windsurf/
 **/.windsurf/
+.kilo/
 
 # Informes y documentación internos (mantener en el equipo local)
 /TECHNICAL_AUDIT*.md

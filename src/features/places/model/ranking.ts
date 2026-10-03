@@ -1,4 +1,4 @@
-import { distanceInKm, type Coordinate } from '@/features/map/model/map';
+import { distanceInKm, type Coordinate } from '@/shared/geo';
 
 import type { TribuusPlace } from './place';
 

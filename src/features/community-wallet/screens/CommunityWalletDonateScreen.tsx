@@ -8,9 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { useCommunityWallet } from '@/context/CommunityWalletContext';
-import { buildStellarDonationUri, fetchXlmClpRate, isStellarConfigured, stellarConfig } from '@/services/stellar';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import { useCommunityWallet } from '@/features/community-wallet/application/CommunityWalletProvider';
+import { buildStellarDonationUri, fetchXlmClpRate, isStellarConfigured, stellarConfig } from '@/features/community-wallet/data/stellar';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, typography } from '@/theme/tokens';
 

@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { useAuth } from '@/context/AuthContext';
-import { useProfile } from '@/context/ProfileContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import { useAuth } from '@/features/auth/application/AuthProvider';
+import { useProfile } from '@/features/profile/application/ProfileProvider';
 import {
   SettingsAction,
   SettingsButton,

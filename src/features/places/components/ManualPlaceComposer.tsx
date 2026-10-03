@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useThemeColors } from '@/context/AppearanceContext';
-import type { Coordinate } from '@/features/map/model/map';
+import { useThemeColors } from '@/theme/AppearanceProvider';
+import type { Coordinate } from '@/shared/geo';
 import { PLACE_CATEGORIES, PLACE_TAGS, type CommunityPlaceDraft, type PlaceCategory, type RecommendationDraft, type TribuusPlace } from '@/features/places/model/place';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';

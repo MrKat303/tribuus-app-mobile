@@ -29,6 +29,10 @@ jobs:
             command: npm run typecheck
           - name: Tests
             command: npm run test
+          - name: Expo dependency compatibility
+            command: npm run expo:check
+          - name: Expo Doctor
+            command: npm run expo:doctor
     steps:
       - name: Checkout
         uses: actions/checkout@v5

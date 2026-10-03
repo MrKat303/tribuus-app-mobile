@@ -2,10 +2,42 @@ import Feather from '@/components/ui/AppIcon';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useCallback, useMemo, useRef } from 'react';
 import { type GestureResponderEvent, Pressable, StyleSheet, View } from 'react-native';
+import Animated, { type SharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { AppText } from '@/components/ui/AppText';
 import { formatDuration, waveformBars } from '@/features/chat/domain/message';
 import { radii, spacing, type ThemeColors } from '@/theme/tokens';
+
+function LiveWaveformBar({ color, height, index, levels }: {
+  color: string;
+  height: number;
+  index: number;
+  levels: SharedValue<number[]>;
+}) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: withTiming(
+      Math.min(height, Math.round(4 + (levels.value[index] ?? 0.12) * Math.max(4, height - 7))),
+      { duration: 120 },
+    ),
+  }));
+
+  return <Animated.View style={[styles.waveformBar, { backgroundColor: color }, animatedStyle]} />;
+}
+
+export function LiveAudioWaveform({ color, levels, barCount = 26, height = 32 }: {
+  barCount?: number;
+  color: string;
+  height?: number;
+  levels: SharedValue<number[]>;
+}) {
+  const barIndexes = useMemo(() => Array.from({ length: barCount }, (_, index) => index), [barCount]);
+
+  return (
+    <View accessibilityLabel="Nivel de grabación" style={[styles.waveform, { height }]}>
+      {barIndexes.map((index) => <LiveWaveformBar color={color} height={height} index={index} key={index} levels={levels} />)}
+    </View>
+  );
+}
 
 export function AudioWaveform({ activeColor, inactiveColor, onSeek, progress, samples, barCount = 30, height = 32 }: {
   activeColor: string;

@@ -1,4 +1,4 @@
-import type { CommunityPost, CommunityPostDraft } from '@/types/community';
+import type { CommunityPost, CommunityPostDraft } from './community';
 
 export const currentCommunityUser = {
   author: 'Jaime M.',
@@ -8,12 +8,14 @@ export const currentCommunityUser = {
 
 export type CommunityUserIdentity = {
   author: string;
+  authorId?: string;
   initials: string;
   location: string;
 };
 
 export type PostsAction =
   | { type: 'postAdded'; post: CommunityPost }
+  | { type: 'postDeleted'; postId: string }
   | { type: 'likeToggled'; postId: string }
   | { type: 'bookmarkToggled'; postId: string }
   | { type: 'commentAdded'; postId: string; comment: CommunityPost['comments'][number] }
@@ -24,6 +26,7 @@ export function createCommunityPost(draft: CommunityPostDraft, id: string, user:
   return {
     ...draft,
     author: user.author,
+    authorId: user.authorId,
     category: draft.category ?? 'comunidad',
     comments: [],
     id,
@@ -41,6 +44,8 @@ export function postsReducer(posts: CommunityPost[], action: PostsAction): Commu
   switch (action.type) {
     case 'postAdded':
       return [action.post, ...posts];
+    case 'postDeleted':
+      return posts.filter((post) => post.id !== action.postId);
     case 'likeToggled':
       return posts.map((post) => post.id === action.postId
         ? { ...post, isLiked: !post.isLiked, likes: Math.max(0, post.likes + (post.isLiked ? -1 : 1)) }

@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { radii, spacing, typography } from '@/theme/tokens';
 
 type IconName = ComponentProps<typeof Feather>['name'];

@@ -3,11 +3,12 @@ import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { spacing } from '@/theme/tokens';
 
-import { filterColor, filterIcon, MAP_FILTERS, type MapFilter } from '../model/map';
+import { MAP_FILTERS, type MapFilter } from '../model/map';
+import { filterColor, filterIcon } from '../ui/mapPresentation';
 
 type MapFiltersProps = {
   activeFilter: MapFilter;

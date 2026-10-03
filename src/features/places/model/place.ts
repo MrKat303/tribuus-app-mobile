@@ -1,4 +1,4 @@
-import type { Coordinate } from '@/features/map/model/map';
+import type { Coordinate } from '@/shared/geo';
 
 export type PlaceProvider = 'mapbox' | 'community';
 export type PlaceCategory = 'Cafetería' | 'Restaurante' | 'Comercio' | 'Panadería' | 'Bar' | 'Otro';
@@ -67,4 +67,3 @@ export function categoryFromMapbox(categories: string[] = []): PlaceCategory {
   if (value.includes('shop') || value.includes('store') || value.includes('retail')) return 'Comercio';
   return 'Otro';
 }
-

@@ -1,10 +1,10 @@
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
-import type { CommunityComment } from '@/types/community';
+import type { CommunityComment } from '@/features/feed/model/community';
 
 const MAX_FEED_COMMENTS = 2;
 

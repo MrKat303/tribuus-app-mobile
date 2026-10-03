@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import Feather from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { chatRepository } from '@/features/chat/data/chat-repository';
 import type { AudioDraft, Message, PendingImage } from '@/features/chat/domain/message';
 import { Composer } from '@/features/chat/ui/components/Composer';

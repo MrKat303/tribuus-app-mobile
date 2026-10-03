@@ -11,13 +11,14 @@ import { Pressable, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useThemeColors } from '@/context/AppearanceContext';
-import type { MapSearchPlace } from '@/services/mapboxSearch';
+import { useThemeColors } from '@/theme/AppearanceProvider';
+import type { MapSearchPlace } from '@/features/places/data/mapboxSearch';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, typography } from '@/theme/tokens';
 
 import type { CommunityCluster } from '../model/clustering';
-import { iconForEvent, markerColor, type EventCategory, type MapEvent } from '../model/map';
+import type { EventCategory, MapEvent } from '../model/map';
+import { iconForEvent, markerColor } from '../ui/mapPresentation';
 
 const categorySymbol: Record<EventCategory, string> = {
   Alerta: '!', Bar: 'B', Café: 'C', Evento: 'E', Restaurante: 'R', Servicio: 'S',

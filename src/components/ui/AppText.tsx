@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import { useThemeColors } from '@/context/AppearanceContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
 import { typography } from '@/theme/tokens';
 
 type TextVariant = 'body' | 'bodyStrong' | 'caption' | 'eyebrow' | 'heading' | 'hero';

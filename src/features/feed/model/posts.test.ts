@@ -1,4 +1,4 @@
-import type { CommunityPost } from '@/types/community';
+import type { CommunityPost } from './community';
 
 import { createCommunityPost, postsReducer } from './posts';
 
@@ -51,6 +51,13 @@ describe('posts model', () => {
     const bookmarked = postsReducer(liked, { type: 'bookmarkToggled', postId: post.id });
 
     expect(bookmarked[0]).toMatchObject({ isBookmarked: true, isLiked: true, likes: 4 });
+  });
+
+  test('deletes only the requested post from local state', () => {
+    const secondPost = { ...post, id: 'post-2' };
+    const result = postsReducer([post, secondPost], { postId: post.id, type: 'postDeleted' });
+
+    expect(result).toEqual([secondPost]);
   });
 
   test('moves a poll vote without double counting', () => {

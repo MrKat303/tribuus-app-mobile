@@ -2,10 +2,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
-import type { CommunityPoll } from '@/types/community';
+import type { CommunityPoll } from '@/features/feed/model/community';
 
 type PostPollProps = {
   onSelect: (optionId: string) => void;
