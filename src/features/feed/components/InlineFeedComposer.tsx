@@ -5,14 +5,14 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTimin
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import { useAuth } from '@/features/auth/application/AuthProvider';
 import { FormattedPostText } from '@/features/feed/components/FormattedPostText';
 import { POST_CONTENT_LIMIT, usePostComposer } from '@/features/feed/hooks/usePostComposer';
 import { parsePostText } from '@/features/feed/model/postFormatting';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
-import type { CommunityPostDraft } from '@/types/community';
+import type { CommunityPostDraft } from '@/features/feed/model/community';
 
 import { PostMediaGrid } from './PostMediaGrid';
 

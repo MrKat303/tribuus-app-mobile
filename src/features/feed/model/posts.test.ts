@@ -1,4 +1,4 @@
-import type { CommunityPost } from '@/types/community';
+import type { CommunityPost } from './community';
 
 import { createCommunityPost, postsReducer } from './posts';
 

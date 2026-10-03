@@ -4,15 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CommunityPostCard } from '@/components/CommunityPostCard';
+import { CommunityPostCard } from '@/features/feed/components/CommunityPostCard';
 import { Screen } from '@/components/Screen';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useThemeColors } from '@/context/AppearanceContext';
-import { usePosts } from '@/context/PostsContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
+import { useFeed } from '@/features/feed/application/FeedProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing } from '@/theme/tokens';
-import type { CommunityPost, CommunityPostDraft } from '@/types/community';
+import type { CommunityPost, CommunityPostDraft } from '@/features/feed/model/community';
 
 import { FeedHeader } from '../components/FeedHeader';
 import type { FeedFilter } from '../model/feed';
@@ -24,7 +24,7 @@ export function FeedScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const { addPost, error, isLoading, isLoadingMore, loadMore, posts, refresh } = usePosts();
+  const { addPost, error, isLoading, isLoadingMore, loadMore, posts, refresh } = useFeed();
   const listRef = useRef<FlashListRef<CommunityPost>>(null);
   const newPostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeFilter, setActiveFilter] = useState<FeedFilter>('todo');

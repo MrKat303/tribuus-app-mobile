@@ -5,13 +5,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { usePlaces } from '@/context/PlacesContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import { usePlaces } from '@/features/places/application/PlacesProvider';
 import { ManualPlaceComposer } from '@/features/places/components/ManualPlaceComposer';
 import { PlaceCard } from '@/features/places/components/PlaceCard';
 import { RecommendationComposer } from '@/features/places/components/RecommendationComposer';
 import { categoryFromMapbox, normalizePlaceName, type ExternalPlaceCandidate, type RecommendationDraft, type TribuusPlace } from '@/features/places/model/place';
 import { placeRankingScore, placeVisualBudget } from '@/features/places/model/ranking';
+import { distanceInKm } from '@/shared/geo';
 import { mapStyles } from '@/theme/mapStyle';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
@@ -28,23 +29,20 @@ import {
   contentKindForEvent,
   COUNTRY_CAMERA_BOUNDS,
   COUNTRY_MIN_ZOOM,
-  distanceInKm,
   DEFAULT_MAP_ZOOM,
   EVENT_MARKER_MIN_ZOOM,
   FRIENDS_NEARBY,
-  iconForEvent,
   INITIAL_EVENTS,
   isCoordinateInViewport,
   MAPBOX_TOKEN,
   type MapEvent,
   type EventCategory,
   type MapFilter,
-  markerBackground,
-  markerColor,
   PLACE_REACTIONS,
   SANTIAGO,
 } from '../model/map';
 import { mapRelevanceScore } from '../model/relevance';
+import { iconForEvent, markerBackground, markerColor } from '../ui/mapPresentation';
 
 const placeEventCategory: Record<TribuusPlace['providerData']['category'], EventCategory> = {
   Bar: 'Bar', Cafetería: 'Café', Comercio: 'Servicio', Otro: 'Servicio', Panadería: 'Café', Restaurante: 'Restaurante',

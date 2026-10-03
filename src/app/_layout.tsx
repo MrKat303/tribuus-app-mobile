@@ -15,14 +15,11 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { AuthenticatedProviders } from '@/bootstrap/AuthenticatedProviders';
 import { bootstrapApplication, type ApplicationBootstrapResult } from '@/bootstrap/applicationBootstrap';
-import { AppearanceProvider, useAppAppearance } from '@/context/AppearanceContext';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
-import { CommunityWalletProvider } from '@/context/CommunityWalletContext';
-import { PostsProvider } from '@/context/PostsContext';
-import { PlacesProvider } from '@/context/PlacesContext';
-import { ProfileProvider } from '@/context/ProfileContext';
-import { registerSupabaseAuthAutoRefresh } from '@/services/supabase';
+import { AuthProvider, useAuth } from '@/features/auth/application/AuthProvider';
+import { registerSupabaseAuthAutoRefresh } from '@/shared/infrastructure/supabase/client';
+import { AppearanceProvider, useAppAppearance } from '@/theme/AppearanceProvider';
 import { createTribuusNavigationTheme } from '@/theme/navigation';
 
 void SplashScreen.preventAutoHideAsync();
@@ -128,18 +125,6 @@ function AppNavigator({ fontsReady }: AppNavigatorProps) {
         <Stack.Screen name="notificaciones" />
         <Stack.Screen name="community-wallet" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen
-          name="community-wallet/donate"
-          options={{
-            animation: 'default',
-            presentation: 'formSheet',
-            sheetAllowedDetents: [0.92],
-            sheetCornerRadius: 24,
-            sheetGrabberVisible: true,
-            sheetInitialDetentIndex: 0,
-          }}
-        />
-        <Stack.Screen name="community-wallet/propose" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-        <Stack.Screen
           name="comments/[postId]"
           options={{
             animation: 'default',
@@ -157,7 +142,7 @@ function AppNavigator({ fontsReady }: AppNavigatorProps) {
   return (
     <ThemeProvider value={navigationTheme}>
       {session && isOnboarded
-        ? <ProfileProvider><PlacesProvider><PostsProvider><CommunityWalletProvider>{navigator}</CommunityWalletProvider></PostsProvider></PlacesProvider></ProfileProvider>
+        ? <AuthenticatedProviders>{navigator}</AuthenticatedProviders>
         : navigator}
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </ThemeProvider>

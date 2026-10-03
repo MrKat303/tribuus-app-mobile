@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { useThemeColors } from '@/context/AppearanceContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
 import { radii, spacing } from '@/theme/tokens';
 
 import { AppText } from './AppText';

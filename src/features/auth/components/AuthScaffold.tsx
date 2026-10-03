@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/BrandMark';
 import { AppText } from '@/components/ui/AppText';
-import { useThemeColors } from '@/context/AppearanceContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 

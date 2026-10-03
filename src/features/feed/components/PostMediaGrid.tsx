@@ -3,9 +3,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { radii, typography } from '@/theme/tokens';
-import type { CommunityPostImage } from '@/types/community';
+import type { CommunityPostImage } from '@/features/feed/model/community';
 
 type PostMediaGridProps = {
   images: CommunityPostImage[];

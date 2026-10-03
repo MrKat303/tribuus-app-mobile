@@ -7,10 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { useCommunityWallet } from '@/context/CommunityWalletContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import { useCommunityWallet } from '@/features/community-wallet/application/CommunityWalletProvider';
 import { demoWalletActivity, type CommunityInitiative, type CommunityWalletActivity } from '@/features/community-wallet/model/communityWallet';
-import { fetchCommunityActivity, fetchCommunityBalance, isStellarConfigured, stellarExplorerTransactionUrl } from '@/services/stellar';
+import { fetchCommunityActivity, fetchCommunityBalance, isStellarConfigured, stellarExplorerTransactionUrl } from '@/features/community-wallet/data/stellar';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, typography } from '@/theme/tokens';
 

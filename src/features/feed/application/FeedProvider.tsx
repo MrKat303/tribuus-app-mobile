@@ -1,6 +1,6 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useProfile } from '@/context/ProfileContext';
+import { useAuth } from '@/features/auth/application/AuthProvider';
 import { postsReducer } from '@/features/feed/model/posts';
 import {
   createFeedPost,
@@ -9,6 +9,7 @@ import {
   ensureFeedIdentity,
   type FeedCursor,
   type FeedIdentity,
+  getFeedPost,
   listFeedPosts,
   setCommentLiked,
   setPollVote,
@@ -16,9 +17,9 @@ import {
   setPostLiked,
   subscribeToFeedChanges,
 } from '@/features/feed/services/postsRepository';
-import type { CommunityPost, CommunityPostDraft } from '@/types/community';
+import type { CommunityPost, CommunityPostDraft } from '@/features/feed/model/community';
 
-type PostsContextValue = {
+type FeedContextValue = {
   addComment: (postId: string, content: string, replyToCommentId?: string) => Promise<void>;
   addPost: (draft: CommunityPostDraft) => Promise<string>;
   deletePost: (postId: string) => Promise<void>;
@@ -26,6 +27,7 @@ type PostsContextValue = {
   hasMore: boolean;
   isLoading: boolean;
   isLoadingMore: boolean;
+  invalidatePost: (postId: string) => void;
   loadMore: () => Promise<void>;
   posts: CommunityPost[];
   refresh: () => Promise<void>;
@@ -35,25 +37,26 @@ type PostsContextValue = {
   toggleLike: (postId: string) => Promise<void>;
 };
 
-const PostsContext = createContext<PostsContextValue | null>(null);
+const FeedContext = createContext<FeedContextValue | null>(null);
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'No fue posible sincronizar el feed.';
 }
 
-export function PostsProvider({ children }: PropsWithChildren) {
-  const { profile } = useProfile();
+export function FeedProvider({ children }: PropsWithChildren) {
+  const { profile } = useAuth();
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [cursor, setCursor] = useState<FeedCursor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isPublishingPost = useRef(false);
+  const postRefreshTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const identity = useMemo<FeedIdentity>(() => ({
-    displayName: profile.name,
-    initials: profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'V',
-    location: profile.location,
-  }), [profile.location, profile.name]);
+    displayName: profile?.displayName ?? 'Miembro de Tribus',
+    initials: profile?.initials || 'V',
+    location: profile?.location ?? 'Providencia',
+  }), [profile]);
 
   const syncFirstPage = useCallback(async () => {
     try {
@@ -77,16 +80,57 @@ export function PostsProvider({ children }: PropsWithChildren) {
     }
   }, [syncFirstPage]);
 
+  const syncPost = useCallback(async (postId: string) => {
+    try {
+      const post = await getFeedPost(postId);
+      setPosts((current) => {
+        const currentIndex = current.findIndex(({ id }) => id === postId);
+        if (!post) return currentIndex === -1 ? current : current.filter(({ id }) => id !== postId);
+        if (currentIndex === -1) return [post, ...current];
+        return current.map((currentPost) => currentPost.id === postId ? post : currentPost);
+      });
+      setError(null);
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    }
+  }, []);
+
+  const invalidatePost = useCallback((postId: string) => {
+    const currentTimer = postRefreshTimers.current.get(postId);
+    if (currentTimer) clearTimeout(currentTimer);
+    const timer = setTimeout(() => {
+      postRefreshTimers.current.delete(postId);
+      void syncPost(postId).catch(() => undefined);
+    }, 100);
+    postRefreshTimers.current.set(postId, timer);
+  }, [syncPost]);
+
+  useEffect(() => () => {
+    for (const timer of postRefreshTimers.current.values()) clearTimeout(timer);
+    postRefreshTimers.current.clear();
+  }, []);
+
   useEffect(() => {
     // The provider must hydrate from the external Supabase store when identity changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void syncFirstPage().catch(() => undefined).finally(() => setIsLoading(false));
   }, [syncFirstPage]);
 
-  useEffect(() => subscribeToFeedChanges(() => {
+  const realtimePostIdsKey = posts.map(({ id }) => id).join(',');
+  const realtimePostIds = useMemo(
+    () => realtimePostIdsKey ? realtimePostIdsKey.split(',') : [],
+    [realtimePostIdsKey],
+  );
+
+  useEffect(() => subscribeToFeedChanges(realtimePostIds, (change) => {
     if (isPublishingPost.current) return;
+    if (change.scope === 'post') {
+      invalidatePost(change.postId);
+      return;
+    }
     void syncFirstPage().catch(() => undefined);
-  }), [syncFirstPage]);
+  }), [invalidatePost, realtimePostIds, syncFirstPage]);
 
   const loadMore = useCallback(async () => {
     if (!cursor || isLoadingMore) return;
@@ -250,6 +294,7 @@ export function PostsProvider({ children }: PropsWithChildren) {
     hasMore: cursor !== null,
     isLoading,
     isLoadingMore,
+    invalidatePost,
     loadMore,
     posts,
     refresh,
@@ -258,15 +303,15 @@ export function PostsProvider({ children }: PropsWithChildren) {
     toggleCommentLike,
     toggleLike,
   }), [
-    addComment, addPost, cursor, deletePost, error, isLoading, isLoadingMore, loadMore, posts,
+    addComment, addPost, cursor, deletePost, error, invalidatePost, isLoading, isLoadingMore, loadMore, posts,
     refresh, selectPollOption, toggleBookmark, toggleCommentLike, toggleLike,
   ]);
 
-  return <PostsContext.Provider value={value}>{children}</PostsContext.Provider>;
+  return <FeedContext.Provider value={value}>{children}</FeedContext.Provider>;
 }
 
-export function usePosts() {
-  const context = useContext(PostsContext);
-  if (!context) throw new Error('usePosts debe usarse dentro de PostsProvider.');
+export function useFeed() {
+  const context = useContext(FeedContext);
+  if (!context) throw new Error('useFeed debe usarse dentro de FeedProvider.');
   return context;
 }

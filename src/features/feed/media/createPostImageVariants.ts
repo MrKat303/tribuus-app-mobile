@@ -1,6 +1,6 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
-import type { CommunityPostImageVariant, CommunityPostImageVariants } from '@/types/community';
+import type { CommunityPostImageVariant, CommunityPostImageVariants } from '@/features/feed/model/community';
 
 type SourceImage = {
   height: number;

@@ -17,18 +17,18 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { useAuth } from '@/context/AuthContext';
-import { usePosts } from '@/context/PostsContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
+import { useAuth } from '@/features/auth/application/AuthProvider';
+import { useFeed } from '@/features/feed/application/FeedProvider';
 import { FormattedPostText } from '@/features/feed/components/FormattedPostText';
 import { PostComments } from '@/features/feed/components/PostComments';
 import { PostMediaGrid } from '@/features/feed/components/PostMediaGrid';
 import { PostPoll } from '@/features/feed/components/PostPoll';
-import type { CommunityPost, CommunityPostCategory } from '@/types/community';
+import type { CommunityPost, CommunityPostCategory } from '@/features/feed/model/community';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
 
-import { AppText } from './ui/AppText';
+import { AppText } from '@/components/ui/AppText';
 
 type CommunityPostCardProps = {
   isNew?: boolean;
@@ -47,7 +47,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   const router = useRouter();
   const { session } = useAuth();
   const reduceMotion = useReducedMotion();
-  const { deletePost, selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = usePosts();
+  const { deletePost, selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = useFeed();
   const audioPlayerRef = useRef<import('expo-audio').AudioPlayer | null>(null);
   const visiblePostIdRef = useRef(post.id);
   visiblePostIdRef.current = post.id;

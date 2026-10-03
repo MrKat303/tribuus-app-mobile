@@ -1,7 +1,7 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useMemo } from 'react';
 
-import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/services/supabase';
+import { useAuth } from '@/features/auth/application/AuthProvider';
+import { supabase } from '@/shared/infrastructure/supabase/client';
 
 export type Profile = {
   bio: string;

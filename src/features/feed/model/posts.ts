@@ -1,4 +1,4 @@
-import type { CommunityPost, CommunityPostDraft } from '@/types/community';
+import type { CommunityPost, CommunityPostDraft } from './community';
 
 export const currentCommunityUser = {
   author: 'Jaime M.',

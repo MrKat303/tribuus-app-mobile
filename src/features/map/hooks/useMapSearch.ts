@@ -8,7 +8,7 @@ import {
   type MapSearchSuggestion,
   retrieveMapPlace,
   suggestMapPlaces,
-} from '@/services/mapboxSearch';
+} from '@/features/places/data/mapboxSearch';
 
 import {
   type Coordinate,

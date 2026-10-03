@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, typography } from '@/theme/tokens';
 

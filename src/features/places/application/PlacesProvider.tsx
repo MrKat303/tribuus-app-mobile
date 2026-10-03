@@ -1,10 +1,10 @@
 import type { PropsWithChildren } from 'react';
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
-import { demoPlaces } from '@/data/demo-places';
-import { distanceInKm } from '@/features/map/model/map';
+import { demoPlaces } from '@/features/places/data/demoPlaces';
 import type { CommunityPlaceDraft, ExternalPlaceCandidate, RecommendationDraft, TribuusPlace } from '@/features/places/model/place';
 import { normalizePlaceName } from '@/features/places/model/place';
+import { distanceInKm } from '@/shared/geo';
 
 type PlacesContextValue = {
   createCommunityPlace: (draft: CommunityPlaceDraft, recommendation: RecommendationDraft) => void;

@@ -2,7 +2,10 @@ import type { Session } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { supabase } from '@/services/supabase';
+import { supabase } from '@/shared/infrastructure/supabase/client';
+
+import { authErrorMessage } from './authErrors';
+import { consumeAuthUrl } from './authLinking';
 
 export type AuthProfile = {
   bio: string;
@@ -69,45 +72,6 @@ function mapProfile(row: ProfileRow): AuthProfile {
     primaryCommunityId: row.primary_community_id,
     username: row.username,
   };
-}
-
-function authErrorMessage(cause: unknown) {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  if (/invalid login credentials/i.test(message)) return 'El correo o la contraseña no son correctos.';
-  if (/email not confirmed/i.test(message)) return 'Confirma tu correo antes de iniciar sesión.';
-  if (/user already registered/i.test(message)) return 'Ya existe una cuenta con este correo.';
-  if (/password/i.test(message) && /characters|weak|short/i.test(message)) {
-    return 'La contraseña no cumple los requisitos de seguridad.';
-  }
-  if (/username/i.test(message) && /duplicate|unique/i.test(message)) return 'Ese nombre de usuario ya está ocupado.';
-  return message || 'No fue posible completar la operación.';
-}
-
-function authParamsFromUrl(url: string) {
-  const queryStart = url.indexOf('?');
-  const fragmentStart = url.indexOf('#');
-  const query = queryStart >= 0
-    ? url.slice(queryStart + 1, fragmentStart >= 0 ? fragmentStart : undefined)
-    : '';
-  const fragment = fragmentStart >= 0 ? url.slice(fragmentStart + 1) : '';
-  return new URLSearchParams([query, fragment].filter(Boolean).join('&'));
-}
-
-async function consumeAuthUrl(url: string) {
-  const params = authParamsFromUrl(url);
-  const code = params.get('code');
-  if (code) {
-    const result = await supabase.auth.exchangeCodeForSession(code);
-    if (result.error) throw result.error;
-    return;
-  }
-
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (accessToken && refreshToken) {
-    const result = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    if (result.error) throw result.error;
-  }
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {

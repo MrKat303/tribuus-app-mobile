@@ -1,15 +1,33 @@
-import { fetch as expoFetch } from 'expo/fetch';
-
-import { supabase } from '@/services/supabase';
+import { supabase } from '@/shared/infrastructure/supabase/client';
+import { mapComment, mapPost } from '@/features/feed/data/feedMappers';
+import { subscribeToCommunityFeedChanges, type FeedRealtimeChange } from '@/features/feed/data/feedRealtime';
+import type { CommentRow, FeedPostRow } from '@/features/feed/data/feedRows';
+import { removePostMedia, uploadPostMedia } from '@/features/feed/data/postMediaStorage';
 import type {
   CommunityComment,
   CommunityPost,
   CommunityPostDraft,
-  CommunityPollOption,
-} from '@/types/community';
+} from '@/features/feed/model/community';
 
-const POST_MEDIA_BUCKET = 'post-media';
 export const FEED_PAGE_SIZE = 20;
+
+const FEED_POST_SELECT = `
+  id,
+  author_id,
+  category,
+  comment_count,
+  content,
+  title,
+  location,
+  image_path,
+  audio_path,
+  audio_name,
+  like_count,
+  published_at,
+  profiles!posts_author_id_fkey(display_name, initials),
+  post_images(id, storage_path, position),
+  post_polls(question, poll_options(id, label, position, vote_count))
+`;
 
 export type FeedCursor = {
   id: number;
@@ -27,140 +45,8 @@ export type FeedPage = {
   posts: CommunityPost[];
 };
 
-type ProfileRelation = {
-  display_name: string;
-  initials: string;
-};
-
-type PollOptionRow = {
-  id: number;
-  label: string;
-  position: number;
-  vote_count: number;
-};
-
-type PollRow = {
-  question: string;
-  poll_options: PollOptionRow[];
-};
-
-type FeedPostRow = {
-  id: number;
-  author_id: string;
-  category: CommunityPost['category'];
-  comment_count: number;
-  content: string;
-  title: string;
-  location: string | null;
-  image_path: string | null;
-  audio_path: string | null;
-  audio_name: string | null;
-  like_count: number;
-  published_at: string;
-  profiles: ProfileRelation;
-  post_images: PostImageRow[];
-  post_polls: PollRow | null;
-};
-
-type PostImageRow = {
-  id: number;
-  position: number;
-  storage_path: string;
-};
-
-type CommentRow = {
-  id: number;
-  post_id: number;
-  content: string;
-  created_at: string;
-  like_count: number;
-  parent_comment_id: number | null;
-  profiles: ProfileRelation;
-  comment_likes: { user_id: string }[];
-};
-
 function assertNoError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
-}
-
-function getPublicMediaUrl(path: string | null) {
-  if (!path) return undefined;
-  return supabase.storage.from(POST_MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
-}
-
-function formatRelativeTime(timestamp: string) {
-  const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 1000));
-  if (elapsedSeconds < 60) return 'Ahora';
-  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-  if (elapsedMinutes < 60) return `Hace ${elapsedMinutes} min`;
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `Hace ${elapsedHours} h`;
-  const elapsedDays = Math.floor(elapsedHours / 24);
-  return `Hace ${elapsedDays} d`;
-}
-
-function normalizeRelation<T>(relation: T | T[] | null): T | null {
-  if (Array.isArray(relation)) return relation[0] ?? null;
-  return relation;
-}
-
-function mapComment(row: CommentRow): CommunityComment {
-  const author = normalizeRelation(row.profiles);
-  return {
-    author: author?.display_name ?? 'Vecino/a',
-    content: row.content,
-    id: String(row.id),
-    initials: author?.initials ?? 'V',
-    isLiked: row.comment_likes.length > 0,
-    likes: row.like_count,
-    replyToCommentId: row.parent_comment_id ? String(row.parent_comment_id) : undefined,
-    timeLabel: formatRelativeTime(row.created_at),
-  };
-}
-
-function mapPost(
-  row: FeedPostRow,
-  comments: readonly CommunityComment[],
-  likedPostIds: ReadonlySet<number>,
-  bookmarkedPostIds: ReadonlySet<number>,
-  selectedPollOptions: ReadonlyMap<number, number>,
-): CommunityPost {
-  const author = normalizeRelation(row.profiles);
-  const poll = normalizeRelation(row.post_polls);
-  const pollOptions = [...(poll?.poll_options ?? [])].sort((left, right) => left.position - right.position);
-
-  return {
-    audioName: row.audio_name ?? undefined,
-    audioUri: getPublicMediaUrl(row.audio_path),
-    author: author?.display_name ?? 'Vecino/a',
-    authorId: row.author_id,
-    category: row.category,
-    comments: [...comments],
-    content: row.content,
-    id: String(row.id),
-    images: [...(row.post_images ?? [])]
-      .sort((left, right) => left.position - right.position)
-      .map((image) => ({ id: String(image.id), uri: getPublicMediaUrl(image.storage_path)! })),
-    imageUri: getPublicMediaUrl(row.image_path),
-    initials: author?.initials ?? 'V',
-    isBookmarked: bookmarkedPostIds.has(row.id),
-    isLiked: likedPostIds.has(row.id),
-    likes: row.like_count,
-    location: row.location ?? undefined,
-    poll: poll ? {
-      options: pollOptions.map((option): CommunityPollOption => ({
-        id: String(option.id),
-        label: option.label,
-        votes: option.vote_count,
-      })),
-      question: poll.question,
-    } : undefined,
-    selectedPollOptionId: selectedPollOptions.has(row.id)
-      ? String(selectedPollOptions.get(row.id))
-      : undefined,
-    timeLabel: formatRelativeTime(row.published_at),
-    title: row.title,
-  };
 }
 
 export async function ensureFeedIdentity(_identity: FeedIdentity) {
@@ -184,43 +70,8 @@ async function getFeedAccount() {
   return { communityId, user };
 }
 
-export async function listFeedPosts(cursor?: FeedCursor | null): Promise<FeedPage> {
-  const { communityId } = await getFeedAccount();
-  let query = supabase
-    .from('posts')
-    .select(`
-      id,
-      author_id,
-      category,
-      comment_count,
-      content,
-      title,
-      location,
-      image_path,
-      audio_path,
-      audio_name,
-      like_count,
-      published_at,
-      profiles!posts_author_id_fkey(display_name, initials),
-      post_images(id, storage_path, position),
-      post_polls(question, poll_options(id, label, position, vote_count))
-    `)
-    .eq('community_id', communityId)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(FEED_PAGE_SIZE);
-
-  if (cursor) {
-    query = query.or(
-      `published_at.lt.${cursor.publishedAt},and(published_at.eq.${cursor.publishedAt},id.lt.${cursor.id})`,
-    );
-  }
-
-  const postsResult = await query;
-  assertNoError(postsResult.error);
-  const rows = (postsResult.data ?? []) as unknown as FeedPostRow[];
-  if (rows.length === 0) return { cursor: null, posts: [] };
+async function hydrateFeedRows(rows: FeedPostRow[]) {
+  if (rows.length === 0) return [];
 
   const postIds = rows.map((row) => row.id);
   const sessionResult = await supabase.auth.getSession();
@@ -265,55 +116,64 @@ export async function listFeedPosts(cursor?: FeedCursor | null): Promise<FeedPag
   const selectedPollOptions = new Map(
     (votesResult.data ?? []).map((vote) => [Number(vote.post_id), Number(vote.option_id)]),
   );
+
+  return rows.map((row) => mapPost(
+    row,
+    commentsByPost.get(row.id) ?? [],
+    likedPostIds,
+    bookmarkedPostIds,
+    selectedPollOptions,
+  ));
+}
+
+export async function listFeedPosts(cursor?: FeedCursor | null): Promise<FeedPage> {
+  const { communityId } = await getFeedAccount();
+  let query = supabase
+    .from('posts')
+    .select(FEED_POST_SELECT)
+    .eq('community_id', communityId)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(FEED_PAGE_SIZE);
+
+  if (cursor) {
+    query = query.or(
+      `published_at.lt.${cursor.publishedAt},and(published_at.eq.${cursor.publishedAt},id.lt.${cursor.id})`,
+    );
+  }
+
+  const postsResult = await query;
+  assertNoError(postsResult.error);
+  const rows = (postsResult.data ?? []) as unknown as FeedPostRow[];
+  if (rows.length === 0) return { cursor: null, posts: [] };
   const lastRow = rows.at(-1);
 
   return {
     cursor: rows.length === FEED_PAGE_SIZE && lastRow
       ? { id: lastRow.id, publishedAt: lastRow.published_at }
       : null,
-    posts: rows.map((row) => mapPost(
-      row,
-      commentsByPost.get(row.id) ?? [],
-      likedPostIds,
-      bookmarkedPostIds,
-      selectedPollOptions,
-    )),
+    posts: await hydrateFeedRows(rows),
   };
 }
 
-function mediaType(uri: string, kind: 'audio' | 'image') {
-  const extension = uri.split('?')[0].split('.').pop()?.toLowerCase();
-  if (kind === 'image') {
-    if (extension === 'png') return { contentType: 'image/png', extension };
-    if (extension === 'webp') return { contentType: 'image/webp', extension };
-    if (extension === 'heic') return { contentType: 'image/heic', extension };
-    return { contentType: 'image/jpeg', extension: 'jpg' };
-  }
-  if (extension === 'mp3') return { contentType: 'audio/mpeg', extension };
-  if (extension === 'wav') return { contentType: 'audio/wav', extension };
-  if (extension === 'mp4') return { contentType: 'audio/mp4', extension };
-  return { contentType: 'audio/m4a', extension: 'm4a' };
-}
+export async function getFeedPost(postId: string) {
+  const numericPostId = Number(postId);
+  if (!Number.isSafeInteger(numericPostId) || numericPostId <= 0) return null;
 
-async function uploadPostMedia(
-  uri: string,
-  userId: string,
-  postId: number,
-  kind: 'audio' | 'image',
-  suffix = '',
-) {
-  const response = await expoFetch(uri);
-  if (!response.ok) throw new Error(`No fue posible leer el archivo ${kind === 'image' ? 'de imagen' : 'de audio'}.`);
-  const file = await response.arrayBuffer();
-  const media = mediaType(uri, kind);
-  const path = `${userId}/${postId}/${kind}${suffix}.${media.extension}`;
-  const uploadResult = await supabase.storage.from(POST_MEDIA_BUCKET).upload(path, file, {
-    cacheControl: '31536000',
-    contentType: media.contentType,
-    upsert: false,
-  });
-  assertNoError(uploadResult.error);
-  return path;
+  const { communityId } = await getFeedAccount();
+  const result = await supabase
+    .from('posts')
+    .select(FEED_POST_SELECT)
+    .eq('community_id', communityId)
+    .eq('id', numericPostId)
+    .eq('status', 'published')
+    .maybeSingle();
+  assertNoError(result.error);
+  if (!result.data) return null;
+
+  const [post] = await hydrateFeedRows([result.data as unknown as FeedPostRow]);
+  return post ?? null;
 }
 
 export async function createFeedPost(draft: CommunityPostDraft, identity: FeedIdentity) {
@@ -384,7 +244,7 @@ export async function createFeedPost(draft: CommunityPostDraft, identity: FeedId
     assertNoError(publishResult.error);
     return postId;
   } catch (error) {
-    if (uploadedPaths.length > 0) await supabase.storage.from(POST_MEDIA_BUCKET).remove(uploadedPaths);
+    await removePostMedia(uploadedPaths).catch(() => undefined);
     await supabase.from('posts').delete().eq('id', postId);
     throw error;
   }
@@ -433,7 +293,7 @@ export async function deleteFeedPost(postId: string) {
 
   // Database deletion is authoritative. Storage cleanup is best-effort so a
   // transient media error cannot resurrect a post whose row was deleted.
-  await supabase.storage.from(POST_MEDIA_BUCKET).remove(mediaPaths).catch(() => undefined);
+  await removePostMedia(mediaPaths).catch(() => undefined);
 }
 
 export async function setPostLiked(postId: string, liked: boolean) {
@@ -495,25 +355,20 @@ export async function setPollVote(postId: string, optionId: string) {
   assertNoError(result.error);
 }
 
-export function subscribeToFeedChanges(onChange: () => void) {
+export function subscribeToFeedChanges(
+  visiblePostIds: string[],
+  onChange: (change: FeedRealtimeChange) => void,
+) {
   let active = true;
-  let channel: ReturnType<typeof supabase.channel> | null = null;
+  let unsubscribe: (() => void) | null = null;
 
   void getFeedAccount().then(({ communityId }) => {
     if (!active) return;
-    channel = supabase
-      .channel(`feed:${communityId}`)
-      .on('postgres_changes', {
-        event: '*',
-        filter: `community_id=eq.${communityId}`,
-        schema: 'public',
-        table: 'posts',
-      }, onChange)
-      .subscribe();
+    unsubscribe = subscribeToCommunityFeedChanges(communityId, visiblePostIds, onChange);
   }).catch(() => undefined);
 
   return () => {
     active = false;
-    if (channel) void supabase.removeChannel(channel);
+    unsubscribe?.();
   };
 }

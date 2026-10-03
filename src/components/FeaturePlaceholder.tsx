@@ -2,7 +2,7 @@ import Feather from '@/components/ui/AppIcon';
 import type { ComponentProps } from 'react';
 import { View } from 'react-native';
 
-import { useThemeColors } from '@/context/AppearanceContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing } from '@/theme/tokens';
 

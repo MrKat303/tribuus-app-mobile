@@ -8,12 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
-import { useAppAppearance } from '@/context/AppearanceContext';
-import { usePosts } from '@/context/PostsContext';
-import { useProfile } from '@/context/ProfileContext';
+import { useAuth } from '@/features/auth/application/AuthProvider';
+import { useFeed } from '@/features/feed/application/FeedProvider';
+import { usePostCommentsRealtime } from '@/features/feed/hooks/usePostCommentsRealtime';
+import type { CommunityComment } from '@/features/feed/model/community';
+import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
-import type { CommunityComment } from '@/types/community';
 
 type ThreadedComment = {
   comment: CommunityComment;
@@ -91,14 +92,15 @@ export function CommentsScreen() {
   const router = useRouter();
   const { colors } = useAppAppearance();
   const styles = useStyles();
-  const { addComment, posts, toggleCommentLike } = usePosts();
-  const { profile } = useProfile();
+  const { profile } = useAuth();
+  const { addComment, invalidatePost, posts, toggleCommentLike } = useFeed();
   const listRef = useRef<FlashListRef<ThreadedComment>>(null);
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<CommunityComment | null>(null);
   const post = posts.find(({ id }) => id === postId);
   const threadedComments = useMemo(() => buildThread(post?.comments ?? []), [post?.comments]);
-  const initials = profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  const initials = profile?.initials || 'V';
+  usePostCommentsRealtime(postId, invalidatePost);
 
   const submitComment = useCallback(async () => {
     const content = draft.trim();

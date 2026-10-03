@@ -4,9 +4,9 @@ Aplicación móvil de Tribuus para Android e iOS, construida con React Native, E
 
 ## Estado del proyecto
 
-La app incluye navegación y pantallas para inicio, mapa, publicaciones, comunidad, chat, noticias, tienda, perfil, notificaciones, configuración y una Community Wallet integrada con Stellar. Los formularios y modelos de feed, lugares y mapa permiten probar interacciones sin depender de una API de producto.
+La app incluye navegación y pantallas para inicio, mapa, publicaciones, comunidad, chat, noticias, tienda, perfil, notificaciones, configuración y una Community Wallet integrada con Stellar. Lugares y varias experiencias de exploración todavía usan datos locales de demostración.
 
-Las publicaciones y lugares se inicializan con datos de demostración y viven en memoria durante la ejecución. El perfil y la preferencia de apariencia pueden persistir localmente con AsyncStorage. Ninguno de esos datos representa un backend de producción. Existe un cliente Supabase para la sesión y la renovación automática de tokens, pero las pantallas todavía no usan Supabase para cargar o guardar contenido. No hay migraciones de base de datos en este repositorio.
+Autenticación, perfiles, chat y feed se integran con Supabase; el feed también usa Supabase Storage y Realtime. Lugares continúan en memoria durante la ejecución y Community Wallet persiste parte de su estado con AsyncStorage. Las migraciones versionadas bajo `supabase/migrations` definen el schema y las publicaciones Realtime requeridas por el cliente.
 
 El mapa usa `@rnmapbox/maps`, búsqueda de lugares con Mapbox y ubicación en primer plano. Para ejecutar esos flujos se necesita un token de Mapbox válido. La app requiere un development build nativo; Expo Go no incluye el módulo nativo de Mapbox.
 
@@ -24,21 +24,18 @@ El mapa usa `@rnmapbox/maps`, búsqueda de lugares con Mapbox y ubicación en pr
 
 ## Arquitectura
 
-Expo Router resuelve las rutas a partir de `src/app`. Los grupos de rutas organizan las pestañas principales y las pantallas de detalle:
+Expo Router resuelve rutas desde `src/app`, pero las implementaciones de pantalla viven en módulos verticales de `src/features`:
 
-- `src/app/`: layouts y rutas de bienvenida, pestañas, descubrimiento, notificaciones, configuración y Community Wallet.
-- `src/features/community-wallet/`: iniciativas, propuestas, apoyo, donación SEP-7 e historial comunitario.
-- `src/features/feed/`: pantalla del feed, composición, comentarios, encuestas y reducer/modelo de publicaciones.
-- `src/features/map/`: pantalla de mapa, búsqueda, cámara, ubicación, marcadores, clustering y ranking.
-- `src/features/places/`: modelos, ranking, tarjetas y formularios de lugares y recomendaciones.
-- `src/features/settings/`: interfaz para las secciones de configuración.
-- `src/context/`: estado compartido de apariencia, perfil, lugares y publicaciones.
-- `src/data/`: datos locales usados para demostraciones.
-- `src/services/`: clientes e integraciones externas, como Mapbox y Supabase, junto a contratos de servicios.
-- `src/components/ui/` y `src/theme/`: componentes reutilizables, estilos, tokens y tema de navegación.
-- `src/types/`: tipos compartidos del dominio.
+- `src/app/`: adaptadores de ruta, layouts, guards y opciones de navegación; no contiene lógica de producto.
+- `src/features/<feature>/model` o `domain`: tipos, reducers y reglas deterministas sin dependencias de React o Expo.
+- `src/features/<feature>/application`: casos de uso, coordinación de estado y providers propiedad de la feature.
+- `src/features/<feature>/data` o `services`: APIs, storage, DTO, mappers y repositories.
+- `src/features/<feature>/screens`, `components`, `hooks` y `ui`: presentación privada del módulo.
+- `src/shared/`: primitivas transversales e infraestructura común sin semántica de producto.
+- `src/bootstrap/`: arranque y composición explícita de providers.
+- `src/components/ui/` y `src/theme/`: sistema visual reutilizable, independiente de las features.
 
-Mantén las rutas enfocadas en composición y navegación. La lógica de dominio debe vivir en `features`; los proveedores externos y capacidades del dispositivo deben quedar encapsulados en `services`.
+Las dependencias apuntan desde rutas y UI hacia application y dominio. `shared`, UI compartida y theme nunca dependen de features; ESLint protege los límites críticos. Consulta [docs/architecture.md](docs/architecture.md) para las reglas completas, criterios de modularización y deuda priorizada.
 
 ## Requisitos
 

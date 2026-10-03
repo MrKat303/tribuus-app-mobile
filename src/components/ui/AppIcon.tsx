@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 import type { ColorValue, StyleProp, TextStyle, ViewStyle } from 'react-native';
 
-import { useThemeColors } from '@/context/AppearanceContext';
+import { useThemeColors } from '@/theme/AppearanceProvider';
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
 type AppIconProps = {
