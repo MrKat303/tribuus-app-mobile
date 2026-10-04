@@ -33,4 +33,8 @@ Reglas prácticas:
 6. Los DTO de backend se transforman en modelos de dominio en `data/`; no deben propagarse directamente a componentes.
 7. Los archivos `index.ts` públicos son opcionales. No se crean barrels globales que oculten dependencias o introduzcan ciclos.
 
+## Ejemplo: feed
+
+El feed usa `application/FeedProvider.tsx` como composition root. Query/paginación, mutaciones optimistas y realtime viven en hooks separados. Los comentarios son un recurso paginado propio de su pantalla (`usePostComments`): el feed solo transporta `commentCount` y nunca hidrata la colección completa. La capa `data/` separa posts, comentarios, interacciones, media e identidad; `services/postsRepository.ts` es únicamente una fachada de compatibilidad para imports antiguos.
+
 ESLint protege los límites más críticos. La explicación completa, decisiones y criterios de modularización están en `docs/architecture.md`.

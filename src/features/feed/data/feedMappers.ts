@@ -38,7 +38,6 @@ export function mapComment(row: CommentRow): CommunityComment {
 
 export function mapPost(
   row: FeedPostRow,
-  comments: readonly CommunityComment[],
   likedPostIds: ReadonlySet<number>,
   bookmarkedPostIds: ReadonlySet<number>,
   selectedPollOptions: ReadonlyMap<number, number>,
@@ -54,7 +53,7 @@ export function mapPost(
     author: author?.display_name ?? 'Vecino/a',
     authorId: row.author_id,
     category: row.category,
-    comments: [...comments],
+    commentCount: row.comment_count,
     content: row.content,
     id: String(row.id),
     images: [...(row.post_images ?? [])]

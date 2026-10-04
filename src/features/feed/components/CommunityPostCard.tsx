@@ -21,7 +21,6 @@ import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { useAuth } from '@/features/auth/application/AuthProvider';
 import { useFeed } from '@/features/feed/application/FeedProvider';
 import { FormattedPostText } from '@/features/feed/components/FormattedPostText';
-import { PostComments } from '@/features/feed/components/PostComments';
 import { PostMediaGrid } from '@/features/feed/components/PostMediaGrid';
 import { PostPoll } from '@/features/feed/components/PostPoll';
 import type { CommunityPost, CommunityPostCategory } from '@/features/feed/model/community';
@@ -64,7 +63,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
 
   const isBookmarked = post.isBookmarked ?? false;
   const isLiked = post.isLiked;
-  const comments = post.comments;
+  const commentCount = post.commentCount;
   const selectedPollOption = post.selectedPollOptionId;
   const likeCount = post.likes;
   const postCategory = categoryStyle[post.category];
@@ -244,8 +243,8 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
           <Feather color={themeColors.textMuted} name="message-circle" size={17} />
           <View style={styles.countViewport}>
-            <Animated.View entering={reduceMotion ? FadeIn.duration(120) : FadeInUp.duration(180)} exiting={FadeOutUp.duration(120)} key={comments.length}>
-              <AppText style={styles.actionLabel} variant="caption">{comments.length}</AppText>
+            <Animated.View entering={reduceMotion ? FadeIn.duration(120) : FadeInUp.duration(180)} exiting={FadeOutUp.duration(120)} key={commentCount}>
+              <AppText style={styles.actionLabel} variant="caption">{commentCount}</AppText>
             </Animated.View>
           </View>
         </Pressable>
@@ -271,12 +270,10 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
         </Pressable>
       </View>
 
-      <PostComments comments={comments} />
-
-      {comments.length > 2 ? (
+      {commentCount > 0 ? (
         <Pressable accessibilityRole="button" onPress={openComments} style={({ pressed }) => [styles.commentsToggle, pressed && styles.pressed]}>
           <AppText style={styles.commentsToggleText} variant="caption">
-            Ver los {comments.length} comentarios
+            Ver {commentCount === 1 ? 'el comentario' : `los ${commentCount} comentarios`}
           </AppText>
         </Pressable>
       ) : null}

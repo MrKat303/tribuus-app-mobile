@@ -45,7 +45,7 @@ export type CommunityPost = {
   author: string;
   authorId?: string;
   category: CommunityPostCategory;
-  comments: CommunityComment[];
+  commentCount: number;
   content: string;
   initials: string;
   isBookmarked?: boolean;
