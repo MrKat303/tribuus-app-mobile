@@ -3,14 +3,15 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { ActionSheetIOS, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
 import { useAuth } from '@/features/auth/application/AuthProvider';
 import { useFeed } from '@/features/feed/application/FeedProvider';
-import { usePostCommentsRealtime } from '@/features/feed/hooks/usePostCommentsRealtime';
+import { usePostComments } from '@/features/feed/application/usePostComments';
+import type { FeedIdentity } from '@/features/feed/data/feedIdentityRepository';
 import type { CommunityComment } from '@/features/feed/model/community';
 import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
@@ -93,20 +94,35 @@ export function CommentsScreen() {
   const { colors } = useAppAppearance();
   const styles = useStyles();
   const { profile } = useAuth();
-  const { addComment, invalidatePost, posts, toggleCommentLike } = useFeed();
+  const { invalidatePost, posts } = useFeed();
   const listRef = useRef<FlashListRef<ThreadedComment>>(null);
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<CommunityComment | null>(null);
   const post = posts.find(({ id }) => id === postId);
-  const threadedComments = useMemo(() => buildThread(post?.comments ?? []), [post?.comments]);
+  const identity = useMemo<FeedIdentity>(() => ({
+    displayName: profile?.displayName ?? 'Miembro de Tribus',
+    initials: profile?.initials || 'V',
+    location: profile?.location ?? 'Providencia',
+  }), [profile]);
+  const {
+    addComment,
+    comments,
+    error,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isSubmitting,
+    loadMore,
+    toggleCommentLike,
+  } = usePostComments({ identity, onPostInvalidated: invalidatePost, postId });
+  const threadedComments = useMemo(() => buildThread(comments), [comments]);
   const initials = profile?.initials || 'V';
-  usePostCommentsRealtime(postId, invalidatePost);
 
   const submitComment = useCallback(async () => {
     const content = draft.trim();
     if (!content || !postId) return;
     try {
-      await addComment(postId, content, replyingTo?.id);
+      await addComment(content, replyingTo?.id);
       setDraft('');
       setReplyingTo(null);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -139,11 +155,28 @@ export function CommentsScreen() {
   const renderComment = useCallback(({ item }: ListRenderItemInfo<ThreadedComment>) => (
     <CommentRow
       item={item}
-      onLike={(commentId) => { if (postId) void toggleCommentLike(postId, commentId).catch(() => undefined); }}
+      onLike={(commentId) => { void toggleCommentLike(commentId).catch(() => undefined); }}
       onMenu={openCommentMenu}
       onReply={setReplyingTo}
     />
-  ), [openCommentMenu, postId, toggleCommentLike]);
+  ), [openCommentMenu, toggleCommentLike]);
+
+  const commentsHeader = hasMore || error ? (
+    <View style={styles.listHeader}>
+      {hasMore ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={isLoadingMore}
+          onPress={() => { void loadMore(); }}
+          style={({ pressed }) => [styles.loadMoreButton, pressed && styles.pressed]}>
+          {isLoadingMore
+            ? <ActivityIndicator color={colors.primaryDark} size="small" />
+            : <AppText style={styles.loadMoreLabel} variant="caption">Ver comentarios anteriores</AppText>}
+        </Pressable>
+      ) : null}
+      {error ? <AppText style={styles.errorText} variant="caption">{error}</AppText> : null}
+    </View>
+  ) : null;
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: colors.surface }]}>
@@ -152,7 +185,7 @@ export function CommentsScreen() {
           <View style={styles.headerSpacer} />
           <View style={styles.headerTitle}>
             <AppText style={styles.title} variant="bodyStrong">Comentarios</AppText>
-            <AppText style={styles.subtitle} variant="caption">{threadedComments.length}</AppText>
+            <AppText style={styles.subtitle} variant="caption">{post?.commentCount ?? 0}</AppText>
           </View>
           <Pressable accessibilityLabel="Cerrar comentarios" accessibilityRole="button" onPress={() => router.back()} style={({ pressed }) => [styles.closeButton, { backgroundColor: colors.surfaceMuted }, pressed && styles.pressed]}>
             <AppIcon color={colors.text} name="x" size={20} />
@@ -166,7 +199,10 @@ export function CommentsScreen() {
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             keyExtractor={({ comment }) => comment.id}
-            ListEmptyComponent={<View style={styles.empty}><AppIcon color={colors.textMuted} name="message-circle" size={28} /><AppText variant="bodyStrong">Sé la primera persona en comentar</AppText><AppText style={styles.emptyCopy} variant="caption">Comparte algo útil o amable con la comunidad.</AppText></View>}
+            ListEmptyComponent={isLoading
+              ? <View style={styles.empty}><ActivityIndicator color={colors.primaryDark} /></View>
+              : <View style={styles.empty}><AppIcon color={colors.textMuted} name="message-circle" size={28} /><AppText variant="bodyStrong">Sé la primera persona en comentar</AppText><AppText style={styles.emptyCopy} variant="caption">Comparte algo útil o amable con la comunidad.</AppText></View>}
+            ListHeaderComponent={commentsHeader}
             ref={listRef}
             renderItem={renderComment}
             showsVerticalScrollIndicator={false}
@@ -195,7 +231,7 @@ export function CommentsScreen() {
                 style={[styles.input, { backgroundColor: colors.input, color: colors.text }]}
                 value={draft}
               />
-              <Pressable accessibilityLabel="Enviar comentario" accessibilityRole="button" disabled={!draft.trim()} onPress={submitComment} style={({ pressed }) => [styles.sendButton, { backgroundColor: colors.primaryDark }, !draft.trim() && styles.disabled, pressed && styles.pressed]}>
+              <Pressable accessibilityLabel="Enviar comentario" accessibilityRole="button" disabled={!draft.trim() || isSubmitting} onPress={submitComment} style={({ pressed }) => [styles.sendButton, { backgroundColor: colors.primaryDark }, (!draft.trim() || isSubmitting) && styles.disabled, pressed && styles.pressed]}>
                 <AppIcon color={colors.textOnPrimary} name="arrow-up" size={18} />
               </Pressable>
             </View>
@@ -216,6 +252,10 @@ const useStyles = makeThemedStyles((colors) => ({
   subtitle: { color: colors.textMuted, fontSize: 10, lineHeight: 13 },
   closeButton: { alignItems: 'center', borderRadius: radii.pill, height: 44, justifyContent: 'center', width: 44 },
   listContent: { paddingBottom: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  listHeader: { alignItems: 'center', gap: spacing.sm, paddingBottom: spacing.sm },
+  loadMoreButton: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingHorizontal: spacing.lg },
+  loadMoreLabel: { color: colors.primaryDark, fontFamily: typography.bodySemiBold },
+  errorText: { color: colors.danger, textAlign: 'center' },
   commentRow: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm, minHeight: 82, paddingVertical: spacing.sm },
   replyRow: { marginLeft: 34 },
   avatar: { alignItems: 'center', borderRadius: radii.pill, height: 36, justifyContent: 'center', width: 36 },

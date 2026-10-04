@@ -78,6 +78,15 @@ El provider se monta en el límite más pequeño compatible con su estado:
 - `PlacesProvider`: ruta de mapa, su único consumidor actual.
 - `CommunityWalletProvider`: layout anidado `community-wallet`, para preservar estado entre sus tres rutas sin cargarlo fuera del flujo.
 
+`FeedProvider` es deliberadamente un composition root del módulo, no el dueño de cada operación. Delega en:
+
+- `useFeedQuery`: primera carga, refresh, paginación, sincronización individual y estado de error/loading;
+- `useFeedMutations`: optimistic updates, persistencia y rollback de posts e interacciones del feed;
+- `useFeedRealtime`: lifecycle de suscripciones e invalidación agrupada por post.
+- `usePostComments`: consulta paginada, mutaciones optimistas y realtime acotados a la pantalla de comentarios.
+
+El contexto conserva el contrato consumido por las pantallas, por lo que estas responsabilidades pueden evolucionar sin propagar detalles de Supabase ni estados intermedios a la UI.
+
 Antes de elevar estado, comprobar si realmente debe sobrevivir a la navegación. Evitar contextos “globales” por conveniencia: amplían renders, ocultan dependencias y dificultan pruebas aisladas.
 
 ## Integraciones y datos
@@ -86,10 +95,12 @@ Los adaptadores externos pertenecen al módulo que los usa:
 
 - Mapbox search: `features/places/data`;
 - Stellar: `features/community-wallet/data`;
-- posts, media, DTO y mappers: `features/feed/data` y `features/feed/services`;
+- feed: repositorios enfocados de posts, comentarios, interacciones, media, identidad y realtime en `features/feed/data`;
 - cliente Supabase común: `shared/infrastructure/supabase`.
 
 Un repository puede coordinar consultas, pero debe delegar transformaciones y storage cuando crezca. Los componentes consumen modelos de aplicación/dominio, no filas sin procesar.
+
+La lectura de una página del feed no hidrata comentarios. Cada post recibe el `comment_count` mantenido por triggers y solo consulta el estado de interacciones; dentro del repositorio de interacciones, likes, bookmarks y votos se consultan en paralelo. La pantalla de comentarios obtiene los 20 comentarios más recientes y pagina hacia atrás mediante cursor compuesto `(created_at, id)`, respaldado por un índice `(post_id, created_at desc, id desc)`. `feedRepository` compone los posts y `services/postsRepository.ts` permanece como fachada temporal de compatibilidad, sin implementación propia.
 
 Los tipos de base de datos de Supabase deben generarse desde el proyecto o esquema real y pasarse como genérico a `createClient<Database>`. No se deben mantener tipos manuales que aparenten representar el schema remoto.
 
@@ -142,8 +153,8 @@ npm run test
 
 1. Generar y versionar los tipos de Supabase desde el schema real; tipar `createClient<Database>` y eliminar DTO manual que replique tablas.
 2. Extraer subcomponentes y lógica de `MapScreen`, `OnboardingScreen`, `MessageBubble` y `DiscoverDetailScreen` cuando se modifiquen; son los hotspots visuales restantes.
-3. Dividir `postsRepository` por operaciones de lectura/escritura solo si continúa creciendo. Ya se separaron DTO, mapping y storage; una fragmentación adicional hoy aportaría poco.
-4. Añadir pruebas de integración de providers/repositories. Las pruebas actuales cubren principalmente dominio determinista.
+3. Añadir pruebas de integración de los hooks de aplicación y repositories del feed. Las pruebas actuales cubren principalmente dominio determinista y parsing de eventos realtime.
+4. Medir el coste real de hidratación por página antes de consolidar lecturas en una función SQL/RPC o migrar señales de Postgres Changes a Broadcast. La separación actual permite hacerlo sin modificar el contrato de UI.
 
 ## Checklist para nuevas features
 
