@@ -8,7 +8,7 @@ import { Screen } from '@/components/Screen';
 import Feather from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/theme/AppearanceProvider';
-import { chatRepository } from '@/features/chat/data/chat-repository';
+import { chatRepository } from '@/features/chat/data/supabase-chat-repository';
 import type { AudioDraft, Message, PendingImage } from '@/features/chat/domain/message';
 import { Composer } from '@/features/chat/ui/components/Composer';
 import { ImageViewer, MessageBubble, TypingIndicator } from '@/features/chat/ui/components/MessageBubble';

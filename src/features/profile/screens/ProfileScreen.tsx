@@ -6,6 +6,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { CommunityPostCard } from '@/features/feed/components/CommunityPostCard';
 import { Screen } from '@/components/Screen';
 import { AppText } from '@/components/ui/AppText';
+import { useAuth } from '@/features/auth/application/AuthProvider';
 import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { useFeed } from '@/features/feed/application/FeedProvider';
 import { useProfile } from '@/features/profile/application/ProfileProvider';
@@ -22,10 +23,20 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { colors: themeColors, isDark } = useAppAppearance();
   const styles = useStyles();
-  const { posts } = useFeed();
+  const {
+    allPosts: posts,
+    deletePost,
+    selectPollOption,
+    toggleBookmark,
+    toggleLike,
+  } = useFeed();
+  const { session } = useAuth();
   const { profile } = useProfile();
   const initials = useMemo(() => profile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(), [profile.name]);
-  const ownPosts = useMemo(() => posts.filter((post) => post.id.startsWith('local-post-') || post.author === profile.name), [posts, profile.name]);
+  const ownPosts = useMemo(
+    () => posts.filter((post) => post.authorId === session?.user.id),
+    [posts, session?.user.id],
+  );
 
   return (
     <Screen scroll>
@@ -98,7 +109,13 @@ export default function ProfileScreen() {
       <View style={styles.posts}>
         {ownPosts.length ? ownPosts.map((post, index) => (
           <View key={post.id}>
-            <CommunityPostCard post={post} />
+            <CommunityPostCard
+              onDeletePost={deletePost}
+              onSelectPollOption={selectPollOption}
+              onToggleBookmark={toggleBookmark}
+              onToggleLike={toggleLike}
+              post={post}
+            />
             {index < ownPosts.length - 1 ? <View style={[styles.postDivider, { backgroundColor: themeColors.border }]} /> : null}
           </View>
         )) : (

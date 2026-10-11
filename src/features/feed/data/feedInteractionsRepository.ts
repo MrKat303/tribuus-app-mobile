@@ -70,11 +70,10 @@ export async function setCommentLiked(commentId: string, liked: boolean) {
 }
 
 export async function setPollVote(postId: string, optionId: string) {
-  const userId = await getInteractionUserId('Necesitas una sesión para votar en la encuesta.');
-  const result = await supabase.from('poll_votes').upsert({
-    option_id: Number(optionId),
-    post_id: Number(postId),
-    user_id: userId,
-  }, { onConflict: 'post_id,user_id' });
+  await getInteractionUserId('Necesitas una sesión para votar en la encuesta.');
+  const result = await supabase.rpc('set_feed_poll_vote', {
+    p_option_id: Number(optionId),
+    p_post_id: Number(postId),
+  });
   assertNoFeedError(result.error);
 }

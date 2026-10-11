@@ -1,0 +1,9 @@
+[package]
+name = "community-impact-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+community-impact = { path = "../community-impact" }
+soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -35,7 +35,7 @@ const sections: { data: NotificationItem[]; title: string }[] = [
     title: 'Ayer',
     data: [
       { accent: '#6366F1', body: 'Se publicó “Alimento para el refugio” en Los Leones. ¡Súmate y ayuda!', icon: 'users', id: 'initiative', time: 'Ayer, 18:24', title: 'Nueva iniciativa cerca de ti' },
-      { accent: '#EC4899', body: 'Gracias por donar a “Biblioteca comunitaria”. Ya llevamos un 80% del objetivo.', icon: 'heart', id: 'donation', time: 'Ayer, 14:03', title: 'Tu donación hizo la diferencia' },
+      { accent: '#EC4899', body: 'Tu colaboración en “Biblioteca comunitaria” fue validada y ya sumó puntos.', icon: 'award', id: 'impact', time: 'Ayer, 14:03', title: 'Aporte validado' },
     ],
   },
   {

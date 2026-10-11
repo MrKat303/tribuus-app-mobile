@@ -54,7 +54,7 @@ describe('feed realtime subscriptions', () => {
 
     const postsRegistration = mockOn.mock.calls.find(([, config]) => config.table === 'posts');
     postsRegistration?.[2]({ eventType: 'UPDATE', new: { id: 10 }, old: {} });
-    expect(onChange).toHaveBeenCalledWith({ postId: '10', scope: 'post' });
+    expect(onChange).toHaveBeenCalledWith({ eventType: 'UPDATE', postId: '10', scope: 'post' });
 
     unsubscribe();
     expect(mockRemoveChannel).toHaveBeenCalledWith(mockRealtimeChannel);

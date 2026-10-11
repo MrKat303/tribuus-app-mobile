@@ -13,7 +13,12 @@ import {
   persistFeedPostMedia,
   removeFeedPostMedia,
 } from '@/features/feed/data/feedMediaRepository';
-import type { CommunityPost, CommunityPostDraft } from '@/features/feed/model/community';
+import { createPostMediaSignedUrlMap } from '@/features/feed/data/postMediaStorage';
+import type {
+  CommunityPost,
+  CommunityPostCategory,
+  CommunityPostDraft,
+} from '@/features/feed/model/community';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 
 export const FEED_PAGE_SIZE = 20;
@@ -49,17 +54,29 @@ export type FeedPage = {
 async function hydrateFeedRows(rows: FeedPostRow[]) {
   if (rows.length === 0) return [];
   const postIds = rows.map((row) => row.id);
-  const interactions = await getFeedInteractionState(postIds);
+  const mediaPaths = rows.flatMap((row) => [
+    row.audio_path,
+    row.image_path,
+    ...(row.post_images ?? []).map(({ storage_path: storagePath }) => storagePath),
+  ]);
+  const [interactions, signedMediaUrls] = await Promise.all([
+    getFeedInteractionState(postIds),
+    createPostMediaSignedUrlMap(mediaPaths),
+  ]);
 
   return rows.map((row) => mapPost(
     row,
     interactions.likedPostIds,
     interactions.bookmarkedPostIds,
     interactions.selectedPollOptions,
+    signedMediaUrls,
   ));
 }
 
-export async function listFeedPosts(cursor?: FeedCursor | null): Promise<FeedPage> {
+export async function listFeedPosts(
+  cursor?: FeedCursor | null,
+  category?: CommunityPostCategory,
+): Promise<FeedPage> {
   const { communityId } = await getFeedAccount();
   let query = supabase
     .from('posts')
@@ -69,6 +86,8 @@ export async function listFeedPosts(cursor?: FeedCursor | null): Promise<FeedPag
     .order('published_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(FEED_PAGE_SIZE);
+
+  if (category) query = query.eq('category', category);
 
   if (cursor) {
     query = query.or(
@@ -124,41 +143,43 @@ export async function createFeedPost(draft: CommunityPostDraft, identity: FeedId
   if (!postResult.data) throw new Error('No fue posible crear la publicación.');
 
   const postId = Number(postResult.data.id);
-  let uploadedPaths: string[] = [];
+  let media: Awaited<ReturnType<typeof persistFeedPostMedia>>;
   try {
-    const media = await persistFeedPostMedia(draft, user.id, postId);
-    uploadedPaths = media.uploadedPaths;
-
-    if (draft.poll) {
-      const pollResult = await supabase.from('post_polls').insert({
-        post_id: postId,
-        question: draft.poll.question.trim(),
-      });
-      assertNoFeedError(pollResult.error);
-      const optionsResult = await supabase.from('poll_options').insert(
-        draft.poll.options.map((option, position) => ({
-          label: option.label.trim(),
-          position,
-          post_id: postId,
-        })),
-      );
-      assertNoFeedError(optionsResult.error);
-    }
-
-    const publishResult = await supabase.from('posts').update({
-      audio_name: draft.audioName ?? null,
-      audio_path: media.audioPath,
-      image_path: media.imagePaths[0] ?? null,
-      published_at: new Date().toISOString(),
-      status: 'published',
-    }).eq('id', postId);
-    assertNoFeedError(publishResult.error);
-    return postId;
+    media = await persistFeedPostMedia(draft, user.id, postId);
   } catch (error) {
-    await removeFeedPostMedia(uploadedPaths).catch(() => undefined);
     await supabase.from('posts').delete().eq('id', postId);
     throw error;
   }
+
+  const publishResult = await supabase.rpc('publish_feed_post', {
+    p_audio_name: draft.audioName ?? undefined,
+    p_audio_path: media.audioPath ?? undefined,
+    p_image_paths: media.imagePaths,
+    p_poll_options: draft.poll?.options.map(({ label }) => label.trim()) ?? [],
+    p_poll_question: draft.poll?.question.trim() ?? undefined,
+    p_post_id: postId,
+  });
+  if (!publishResult.error) return postId;
+
+  // An RPC can commit successfully while the client loses the response. Verify
+  // the authoritative row before compensating so a timeout never deletes a
+  // publication that other members can already see.
+  const statusResult = await supabase
+    .from('posts')
+    .select('status')
+    .eq('id', postId)
+    .maybeSingle();
+  if (!statusResult.error && statusResult.data?.status === 'published') return postId;
+
+  if (!statusResult.error && statusResult.data?.status === 'draft') {
+    await removeFeedPostMedia(media.uploadedPaths).catch(() => undefined);
+    await supabase.from('posts').delete().eq('id', postId);
+  }
+
+  // If verification itself failed, preserve the draft and its media. A later
+  // retry/cleanup job is safer than destructive compensation under ambiguity.
+  assertNoFeedError(publishResult.error);
+  return postId;
 }
 
 type DeletablePostRow = DeletablePostMedia & {

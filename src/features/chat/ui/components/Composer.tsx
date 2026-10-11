@@ -30,6 +30,7 @@ function selectionHaptic() {
 }
 
 export function Composer({
+  allowMedia = false,
   colors,
   onCancelReply,
   onSendAudio,
@@ -38,6 +39,7 @@ export function Composer({
   participantName,
   replyingTo,
 }: {
+  allowMedia?: boolean;
   colors: ThemeColors;
   onCancelReply: () => void;
   onSendAudio: (audio: AudioDraft) => void;
@@ -150,9 +152,9 @@ export function Composer({
         />
       ) : (
         <View style={[styles.composer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Pressable accessibilityLabel="Adjuntar imagen" hitSlop={4} onPress={pickImage} style={({ pressed }) => [styles.composerButton, pressed && styles.buttonPressed]}><Feather color={colors.textMuted} name="image" size={19} /></Pressable>
+          {allowMedia ? <Pressable accessibilityLabel="Adjuntar imagen" hitSlop={4} onPress={pickImage} style={({ pressed }) => [styles.composerButton, pressed && styles.buttonPressed]}><Feather color={colors.textMuted} name="image" size={19} /></Pressable> : null}
           <Pressable accessibilityLabel="Agregar emoji" hitSlop={4} onPress={() => setShowEmojiPicker((current) => !current)} style={({ pressed }) => [styles.composerButton, showEmojiPicker && { backgroundColor: colors.primarySoft }, pressed && styles.buttonPressed]}><Feather color={showEmojiPicker ? colors.primaryDark : colors.textMuted} name="smile" size={19} /></Pressable>
-          <Pressable accessibilityLabel="Grabar audio" disabled={Boolean(draft.trim() || pendingImage)} hitSlop={4} onPress={startRecording} style={({ pressed }) => [styles.composerButton, Boolean(draft.trim() || pendingImage) && styles.composerButtonDisabled, pressed && styles.buttonPressed]}><Feather color={colors.textMuted} name="mic" size={19} /></Pressable>
+          {allowMedia ? <Pressable accessibilityLabel="Grabar audio" disabled={Boolean(draft.trim() || pendingImage)} hitSlop={4} onPress={startRecording} style={({ pressed }) => [styles.composerButton, Boolean(draft.trim() || pendingImage) && styles.composerButtonDisabled, pressed && styles.buttonPressed]}><Feather color={colors.textMuted} name="mic" size={19} /></Pressable> : null}
           <TextInput accessibilityLabel="Mensaje" blurOnSubmit={false} multiline onChangeText={setDraft} onSubmitEditing={sendText} placeholder="Escribe un mensaje" placeholderTextColor={colors.textMuted} ref={inputRef} returnKeyType="send" style={[styles.input, { color: colors.text }]} value={draft} />
           <Animated.View layout={LinearTransition.duration(140)}>
             <Pressable accessibilityLabel={pendingImage && !draft.trim() ? 'Enviar imagen' : 'Enviar mensaje'} disabled={!draft.trim() && !pendingImage} onPress={sendText} style={({ pressed }) => [styles.sendButton, { backgroundColor: ownBubbleBackground }, (!draft.trim() && !pendingImage) && styles.sendButtonDisabled, pressed && (draft.trim() || pendingImage) && styles.sendButtonPressed]}><Feather color="#FFFFFF" name="arrow-up" size={19} /></Pressable>

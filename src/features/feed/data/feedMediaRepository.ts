@@ -1,7 +1,8 @@
-import { assertNoFeedError } from '@/features/feed/data/feedIdentityRepository';
 import { removePostMedia, uploadPostMedia } from '@/features/feed/data/postMediaStorage';
 import type { CommunityPostDraft } from '@/features/feed/model/community';
-import { supabase } from '@/shared/infrastructure/supabase/client';
+import { mapWithConcurrency } from '@/shared/utils/mapWithConcurrency';
+
+const POST_MEDIA_UPLOAD_CONCURRENCY = 3;
 
 export type DeletablePostMedia = {
   audio_path: string | null;
@@ -21,26 +22,24 @@ export async function persistFeedPostMedia(
       : draft.imageUri
         ? [{ id: 'legacy', uri: draft.imageUri }]
         : [];
-    const imagePaths: string[] = [];
-    for (const [position, image] of draftImages.entries()) {
-      const imagePath = await uploadPostMedia(image.uri, userId, postId, 'image', `-${position}`);
-      imagePaths.push(imagePath);
-      uploadedPaths.push(imagePath);
-    }
-    if (imagePaths.length > 0) {
-      const imagesResult = await supabase.from('post_images').insert(imagePaths.map((storagePath, position) => ({
-        position,
-        post_id: postId,
-        storage_path: storagePath,
-      })));
-      assertNoFeedError(imagesResult.error);
-    }
-
+    const imagePaths = await mapWithConcurrency(
+      draftImages,
+      POST_MEDIA_UPLOAD_CONCURRENCY,
+      async (image, position) => {
+        const imagePath = await uploadPostMedia(image.uri, userId, postId, 'image', `-${position}`);
+        uploadedPaths.push(imagePath);
+        return imagePath;
+      },
+    );
     const audioPath = draft.audioUri
       ? await uploadPostMedia(draft.audioUri, userId, postId, 'audio')
       : null;
     if (audioPath) uploadedPaths.push(audioPath);
-    return { audioPath, imagePaths, uploadedPaths };
+    return {
+      audioPath,
+      imagePaths,
+      uploadedPaths: [...imagePaths, ...(audioPath ? [audioPath] : [])],
+    };
   } catch (error) {
     await removePostMedia(uploadedPaths).catch(() => undefined);
     throw error;

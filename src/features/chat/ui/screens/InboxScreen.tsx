@@ -1,35 +1,17 @@
-import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Screen } from '@/components/Screen';
 import Feather from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/theme/AppearanceProvider';
-import { chatRepository } from '@/features/chat/data/chat-repository';
+import { chatRepository } from '@/features/chat/data/supabase-chat-repository';
 import type { Conversation, InboxFilter } from '@/features/chat/domain/conversation';
 import { filterConversations, inboxFilters } from '@/features/chat/domain/conversation';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
-function notificationPermissionGranted(permission: Notifications.NotificationPermissionsStatus) {
-  if (permission.granted) return true;
-  const iosStatus = permission.ios?.status;
-  return iosStatus === Notifications.IosAuthorizationStatus.AUTHORIZED
-    || iosStatus === Notifications.IosAuthorizationStatus.PROVISIONAL
-    || iosStatus === Notifications.IosAuthorizationStatus.EPHEMERAL;
-}
 
 export default function InboxScreen() {
   const { colors, isDark } = useAppAppearance();
@@ -39,7 +21,6 @@ export default function InboxScreen() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all');
-  const [testNotificationPending, setTestNotificationPending] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -56,48 +37,10 @@ export default function InboxScreen() {
   );
   const ownBubbleBackground = isDark ? '#248A3D' : colors.primaryDark;
 
-  const scheduleTestNotification = async () => {
-    if (testNotificationPending) return;
-    setTestNotificationPending(true);
-    try {
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('tests', {
-          importance: Notifications.AndroidImportance.HIGH,
-          name: 'Notificaciones de prueba',
-          sound: 'default',
-          vibrationPattern: [0, 180, 120, 180],
-        });
-      }
-      let permission = await Notifications.getPermissionsAsync();
-      if (!notificationPermissionGranted(permission)) {
-        permission = await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } });
-      }
-      if (!notificationPermissionGranted(permission)) {
-        Alert.alert('Notificaciones desactivadas', 'Actívalas en los ajustes del celular para recibir la prueba.');
-        return;
-      }
-      await Notifications.scheduleNotificationAsync({
-        content: { body: 'Las notificaciones están funcionando correctamente en este dispositivo.', data: { source: 'chat-test' }, sound: 'default', title: 'Notificación de prueba' },
-        trigger: { channelId: Platform.OS === 'android' ? 'tests' : undefined, repeats: false, seconds: 3, type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL },
-      });
-      Alert.alert('Prueba programada', 'Recibirás una notificación en aproximadamente 3 segundos.');
-    } catch {
-      Alert.alert('No se pudo programar', 'Revisa los permisos de notificaciones e inténtalo nuevamente.');
-    } finally {
-      setTestNotificationPending(false);
-    }
-  };
-
   return (
     <Screen>
       <View style={styles.inboxHeader}>
         <View><AppText variant="eyebrow">Tu comunidad</AppText><AppText style={styles.title} variant="heading">Chat</AppText></View>
-        <View style={styles.inboxHeaderActions}>
-          <Pressable accessibilityLabel="Enviar notificación de prueba" disabled={testNotificationPending} onPress={scheduleTestNotification} style={({ pressed }) => [styles.newButton, { backgroundColor: colors.surfaceMuted }, pressed && styles.buttonPressed]}>
-            {testNotificationPending ? <ActivityIndicator color={colors.primaryDark} size="small" /> : <Feather color={colors.primaryDark} name="bell" size={17} />}
-          </Pressable>
-          <Pressable accessibilityLabel="Nuevo mensaje" style={({ pressed }) => [styles.newButton, { backgroundColor: colors.primarySoft }, pressed && styles.buttonPressed]}><Feather color={colors.primaryDark} name="edit-2" size={18} /></Pressable>
-        </View>
       </View>
 
       <View style={[styles.search, { backgroundColor: colors.surfaceMuted }]}>

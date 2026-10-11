@@ -4,7 +4,6 @@ import type {
   CommunityPollOption,
 } from '../model/community';
 import type { CommentRow, FeedPostRow } from './feedRows';
-import { getPublicPostMediaUrl } from './postMediaStorage';
 
 function formatRelativeTime(timestamp: string) {
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 1000));
@@ -41,6 +40,7 @@ export function mapPost(
   likedPostIds: ReadonlySet<number>,
   bookmarkedPostIds: ReadonlySet<number>,
   selectedPollOptions: ReadonlyMap<number, number>,
+  signedMediaUrls: ReadonlyMap<string, string>,
 ): CommunityPost {
   const author = normalizeRelation(row.profiles);
   const poll = normalizeRelation(row.post_polls);
@@ -49,7 +49,7 @@ export function mapPost(
 
   return {
     audioName: row.audio_name ?? undefined,
-    audioUri: getPublicPostMediaUrl(row.audio_path),
+    audioUri: row.audio_path ? signedMediaUrls.get(row.audio_path) : undefined,
     author: author?.display_name ?? 'Vecino/a',
     authorId: row.author_id,
     category: row.category,
@@ -58,8 +58,9 @@ export function mapPost(
     id: String(row.id),
     images: [...(row.post_images ?? [])]
       .sort((left, right) => left.position - right.position)
-      .map((image) => ({ id: String(image.id), uri: getPublicPostMediaUrl(image.storage_path)! })),
-    imageUri: getPublicPostMediaUrl(row.image_path),
+      .map((image) => ({ id: String(image.id), uri: signedMediaUrls.get(image.storage_path)! }))
+      .filter((image) => Boolean(image.uri)),
+    imageUri: row.image_path ? signedMediaUrls.get(row.image_path) : undefined,
     initials: author?.initials ?? 'V',
     isBookmarked: bookmarkedPostIds.has(row.id),
     isLiked: likedPostIds.has(row.id),

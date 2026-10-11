@@ -26,7 +26,7 @@ export function ManualPlaceComposer({ findDuplicates, initialCoordinate, onClose
   const [name, setName] = useState('');
   const [category, setCategory] = useState<PlaceCategory>('Cafetería');
   const [address, setAddress] = useState('');
-  const [neighborhood, setNeighborhood] = useState('Providencia');
+  const [neighborhood, setNeighborhood] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate>(initialCoordinate);
   const [duplicates, setDuplicates] = useState<TribuusPlace[]>([]);
   const [recommendation, setRecommendation] = useState('');
@@ -52,7 +52,7 @@ export function ManualPlaceComposer({ findDuplicates, initialCoordinate, onClose
           <AppText style={styles.eyebrow} variant="caption">LUGAR DE LA COMUNIDAD</AppText><AppText style={styles.title} variant="heading">Cuéntanos dónde está</AppText><AppText style={styles.subtitle}>Lo compararemos con lugares cercanos antes de crearlo.</AppText>
           <Field label="Nombre" onChange={setName} placeholder="Ej. Café La Plaza" value={name} />
           <AppText style={styles.fieldLabel} variant="caption">CATEGORÍA</AppText><View style={styles.categories}>{PLACE_CATEGORIES.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.category, category === item && styles.categorySelected]}><AppText style={[styles.categoryText, category === item && styles.categoryTextSelected]} variant="caption">{item}</AppText></Pressable>)}</View>
-          <Field label="Comuna o barrio" onChange={setNeighborhood} placeholder="Providencia" value={neighborhood} /><Field label="Dirección" onChange={setAddress} placeholder="Calle y número" value={address} />
+          <Field label="Comuna o barrio" onChange={setNeighborhood} placeholder="Ej. Ñuñoa" value={neighborhood} /><Field label="Dirección" onChange={setAddress} placeholder="Calle y número" value={address} />
           <View style={styles.locationBox}><View style={styles.locationIcon}><AppIcon color={colors.textOnPrimary} name="crosshair" size={18} /></View><View style={styles.locationCopy}><AppText variant="bodyStrong">Punto seleccionado en el mapa</AppText><AppText style={styles.coordinate} variant="caption">{coordinate[1].toFixed(5)}, {coordinate[0].toFixed(5)}</AppText></View><Pressable onPress={() => setCoordinate(initialCoordinate)} style={styles.useCenter}><AppText style={styles.useCenterText} variant="caption">Usar centro</AppText></Pressable></View>
           <PrimaryButton label="Continuar" onPress={continueFlow} />
         </> : null}

@@ -3,6 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 
 const POST_MEDIA_BUCKET = 'post-media';
+const POST_MEDIA_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 function mediaType(uri: string, kind: 'audio' | 'image') {
   const extension = uri.split('?')[0].split('.').pop()?.toLowerCase();
@@ -18,9 +19,23 @@ function mediaType(uri: string, kind: 'audio' | 'image') {
   return { contentType: 'audio/m4a', extension: 'm4a' };
 }
 
-export function getPublicPostMediaUrl(path: string | null) {
-  if (!path) return undefined;
-  return supabase.storage.from(POST_MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
+export async function createPostMediaSignedUrlMap(paths: (string | null)[]) {
+  const uniquePaths = Array.from(new Set(paths.filter((path): path is string => Boolean(path))));
+  if (uniquePaths.length === 0) return new Map<string, string>();
+
+  const result = await supabase.storage
+    .from(POST_MEDIA_BUCKET)
+    .createSignedUrls(uniquePaths, POST_MEDIA_SIGNED_URL_TTL_SECONDS);
+  if (result.error) throw new Error(result.error.message);
+
+  const signedUrls = new Map<string, string>();
+  for (const item of result.data) {
+    // A deleted/corrupt attachment must not make every otherwise valid post
+    // disappear. Missing entries are filtered by the mapper.
+    if (item.error) continue;
+    if (item.path && item.signedUrl) signedUrls.set(item.path, item.signedUrl);
+  }
+  return signedUrls;
 }
 
 export async function uploadPostMedia(
