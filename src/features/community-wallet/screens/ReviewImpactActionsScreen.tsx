@@ -86,6 +86,7 @@ export function ReviewImpactActionsScreen() {
               {pendingReview.map((action) => {
                 const rule = ruleByCode.get(action.actionTypeCode);
                 const working = workingId === action.id;
+                const isRetry = action.status !== 'pending';
                 return (
                   <View key={action.id} style={styles.actionCard}>
                     <View style={styles.cardHeader}>
@@ -103,12 +104,14 @@ export function ReviewImpactActionsScreen() {
                       </View>
                     ) : null}
                     <View style={styles.actions}>
-                      <Pressable accessibilityRole="button" disabled={working} onPress={() => confirmReview(action, 'rejected')} style={({ pressed }) => [styles.rejectButton, pressed && styles.pressed]}>
-                        <AppText style={styles.rejectText} variant="bodyStrong">Rechazar</AppText>
-                      </Pressable>
+                      {!isRetry ? (
+                        <Pressable accessibilityRole="button" disabled={working} onPress={() => confirmReview(action, 'rejected')} style={({ pressed }) => [styles.rejectButton, pressed && styles.pressed]}>
+                          <AppText style={styles.rejectText} variant="bodyStrong">Rechazar</AppText>
+                        </Pressable>
+                      ) : null}
                       <Pressable accessibilityRole="button" disabled={working} onPress={() => confirmReview(action, 'approved')} style={({ pressed }) => [styles.approveButton, working && styles.disabled, pressed && styles.pressed]}>
-                        <AppIcon color={colors.textOnPrimary} name="check" size={16} />
-                        <AppText style={styles.approveText} variant="bodyStrong">{working ? 'Procesando…' : 'Aprobar'}</AppText>
+                        <AppIcon color={colors.textOnPrimary} name={isRetry ? 'refresh-cw' : 'check'} size={16} />
+                        <AppText style={styles.approveText} variant="bodyStrong">{working ? 'Procesando…' : isRetry ? 'Reconciliar en Stellar' : 'Aprobar'}</AppText>
                       </Pressable>
                     </View>
                   </View>

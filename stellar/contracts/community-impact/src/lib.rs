@@ -18,6 +18,7 @@ enum DataKey {
     Credential(BytesN<32>),
     InitiativeProof(BytesN<32>),
     Issuer(Address),
+    PendingAdmin,
     Score(BytesN<32>),
 }
 
@@ -66,6 +67,7 @@ pub enum Error {
     InvalidPoints = 6,
     AlreadyRevoked = 7,
     ArithmeticOverflow = 8,
+    NoPendingAdmin = 9,
 }
 
 #[contractevent]
@@ -87,6 +89,8 @@ pub struct CredentialRevoked {
     pub credential_id: BytesN<32>,
     #[topic]
     pub issuer: Address,
+    #[topic]
+    pub revoked_by: Address,
     pub subject: BytesN<32>,
 }
 
@@ -103,9 +107,7 @@ pub struct InitiativeProofPublished {
 }
 
 fn extend_instance_ttl(env: &Env) {
-    env.storage()
-        .instance()
-        .extend_ttl(TTL_THRESHOLD, TTL_BUMP);
+    env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_BUMP);
 }
 
 fn require_issuer(env: &Env, issuer: &Address) -> Result<(), Error> {
@@ -121,19 +123,71 @@ fn require_issuer(env: &Env, issuer: &Address) -> Result<(), Error> {
     Ok(())
 }
 
+fn require_admin(env: &Env, admin: &Address) -> Result<(), Error> {
+    let stored_admin = env
+        .storage()
+        .instance()
+        .get::<_, Address>(&DataKey::Admin)
+        .ok_or(Error::NotInitialized)?;
+    if admin != &stored_admin {
+        return Err(Error::NotAuthorized);
+    }
+    admin.require_auth();
+    Ok(())
+}
+
+fn revoke_stored_credential(
+    env: &Env,
+    credential_id: BytesN<32>,
+    revoked_by: Address,
+) -> Result<(), Error> {
+    let credential_key = DataKey::Credential(credential_id.clone());
+    let mut credential = env
+        .storage()
+        .persistent()
+        .get::<_, Credential>(&credential_key)
+        .ok_or(Error::NotFound)?;
+    if credential.status == CredentialStatus::Revoked {
+        return Err(Error::AlreadyRevoked);
+    }
+
+    let score_key = DataKey::Score(credential.subject.clone());
+    let score = env
+        .storage()
+        .persistent()
+        .get::<_, u32>(&score_key)
+        .unwrap_or(0);
+    credential.status = CredentialStatus::Revoked;
+    env.storage().persistent().set(&credential_key, &credential);
+    env.storage()
+        .persistent()
+        .set(&score_key, &score.saturating_sub(credential.points));
+    env.storage()
+        .persistent()
+        .extend_ttl(&credential_key, TTL_THRESHOLD, TTL_BUMP);
+    env.storage()
+        .persistent()
+        .extend_ttl(&score_key, TTL_THRESHOLD, TTL_BUMP);
+    extend_instance_ttl(env);
+
+    CredentialRevoked {
+        credential_id,
+        issuer: credential.issuer,
+        revoked_by,
+        subject: credential.subject,
+    }
+    .publish(env);
+    Ok(())
+}
+
 #[contractimpl]
 impl CommunityImpactContract {
-    pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
-        if env.storage().instance().has(&DataKey::Admin) {
-            return Err(Error::AlreadyInitialized);
-        }
-        admin.require_auth();
+    pub fn __constructor(env: Env, admin: Address) {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage()
             .instance()
             .set(&DataKey::Issuer(admin.clone()), &true);
         extend_instance_ttl(&env);
-        Ok(())
     }
 
     pub fn set_issuer(
@@ -142,18 +196,46 @@ impl CommunityImpactContract {
         issuer: Address,
         enabled: bool,
     ) -> Result<(), Error> {
-        let stored_admin = env
+        require_admin(&env, &admin)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::Issuer(issuer), &enabled);
+        extend_instance_ttl(&env);
+        Ok(())
+    }
+
+    pub fn propose_admin(env: Env, admin: Address, new_admin: Address) -> Result<(), Error> {
+        require_admin(&env, &admin)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
+        extend_instance_ttl(&env);
+        Ok(())
+    }
+
+    pub fn accept_admin(env: Env, new_admin: Address) -> Result<(), Error> {
+        let old_admin = env
             .storage()
             .instance()
             .get::<_, Address>(&DataKey::Admin)
             .ok_or(Error::NotInitialized)?;
-        if admin != stored_admin {
+        let pending_admin = env
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::PendingAdmin)
+            .ok_or(Error::NoPendingAdmin)?;
+        if new_admin != pending_admin {
             return Err(Error::NotAuthorized);
         }
-        admin.require_auth();
+        new_admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
         env.storage()
             .instance()
-            .set(&DataKey::Issuer(issuer), &enabled);
+            .set(&DataKey::Issuer(old_admin), &false);
+        env.storage()
+            .instance()
+            .set(&DataKey::Issuer(new_admin), &true);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
         extend_instance_ttl(&env);
         Ok(())
     }
@@ -186,9 +268,7 @@ impl CommunityImpactContract {
             .persistent()
             .get::<_, u32>(&score_key)
             .unwrap_or(0);
-        let next_score = score
-            .checked_add(points)
-            .ok_or(Error::ArithmeticOverflow)?;
+        let next_score = score.checked_add(points).ok_or(Error::ArithmeticOverflow)?;
         let credential = Credential {
             action_type: action_type.clone(),
             claim_hash: claim_hash.clone(),
@@ -224,50 +304,22 @@ impl CommunityImpactContract {
         Ok(credential)
     }
 
-    pub fn revoke(
-        env: Env,
-        issuer: Address,
-        credential_id: BytesN<32>,
-    ) -> Result<(), Error> {
+    pub fn revoke(env: Env, issuer: Address, credential_id: BytesN<32>) -> Result<(), Error> {
         require_issuer(&env, &issuer)?;
-        let credential_key = DataKey::Credential(credential_id.clone());
-        let mut credential = env
+        let credential = env
             .storage()
             .persistent()
-            .get::<_, Credential>(&credential_key)
+            .get::<_, Credential>(&DataKey::Credential(credential_id.clone()))
             .ok_or(Error::NotFound)?;
         if credential.issuer != issuer {
             return Err(Error::NotAuthorized);
         }
-        if credential.status == CredentialStatus::Revoked {
-            return Err(Error::AlreadyRevoked);
-        }
+        revoke_stored_credential(&env, credential_id, issuer)
+    }
 
-        let score_key = DataKey::Score(credential.subject.clone());
-        let score = env
-            .storage()
-            .persistent()
-            .get::<_, u32>(&score_key)
-            .unwrap_or(0);
-        credential.status = CredentialStatus::Revoked;
-        env.storage().persistent().set(&credential_key, &credential);
-        env.storage()
-            .persistent()
-            .set(&score_key, &score.saturating_sub(credential.points));
-        env.storage()
-            .persistent()
-            .extend_ttl(&credential_key, TTL_THRESHOLD, TTL_BUMP);
-        env.storage()
-            .persistent()
-            .extend_ttl(&score_key, TTL_THRESHOLD, TTL_BUMP);
-
-        CredentialRevoked {
-            credential_id,
-            issuer,
-            subject: credential.subject,
-        }
-        .publish(&env);
-        Ok(())
+    pub fn admin_revoke(env: Env, admin: Address, credential_id: BytesN<32>) -> Result<(), Error> {
+        require_admin(&env, &admin)?;
+        revoke_stored_credential(&env, credential_id, admin)
     }
 
     #[allow(clippy::too_many_arguments)]

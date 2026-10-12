@@ -1,4 +1,3 @@
-// @ts-nocheck -- Esta función corre en Deno; se valida con `supabase functions serve`.
 /* eslint-disable import/no-unresolved -- Deno resuelve imports npm: en runtime. */
 import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
 import {
@@ -12,6 +11,8 @@ import {
   TransactionBuilder,
   xdr,
 } from 'npm:@stellar/stellar-sdk@17.2.1';
+
+import { classifySubmissionStatus } from './stellar-status.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -34,6 +35,19 @@ type CredentialDraft = {
   points: number;
   rule_version: number;
   subject_commitment: string;
+  credential_status: 'pending_anchor' | 'anchor_submitted' | 'active' | 'anchor_failed';
+  stellar_transaction_hash: string | null;
+};
+
+type AnchorResult =
+  | { status: 'active'; transactionHash: string }
+  | { status: 'anchor_submitted'; transactionHash: string };
+
+type AdminClient = {
+  rpc: (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
 };
 
 function json(body: unknown, status = 200) {
@@ -80,27 +94,44 @@ function hexToBytes(value: string) {
   return Uint8Array.from(value.match(/.{2}/g)!.map((byte) => Number.parseInt(byte, 16)));
 }
 
+function bytesToHex(value: Uint8Array) {
+  return Array.from(value, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function stellarNetwork() {
+  const value = requiredEnv('STELLAR_NETWORK');
+  if (value !== 'testnet' && value !== 'public') {
+    throw new Error('STELLAR_NETWORK debe ser testnet o public.');
+  }
+  return value;
+}
+
+async function callRpc(client: AdminClient, name: string, args: Record<string, unknown>) {
+  const result = await client.rpc(name, args);
+  if (result.error) throw new Error(result.error.message);
+  return result.data;
+}
+
 async function waitForTransaction(server: rpc.Server, transactionHash: string) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const result = await server.getTransaction(transactionHash);
-    if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) return result;
+    if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) return 'success' as const;
     if (result.status === rpc.Api.GetTransactionStatus.FAILED) {
-      throw new Error('Soroban rechazó la acreditación.');
+      return 'failed' as const;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  throw new Error('Stellar no confirmó la acreditación dentro del tiempo esperado.');
+  return 'pending' as const;
 }
 
-async function publishCredential(draft: CredentialDraft) {
+async function publishCredential(draft: CredentialDraft, adminClient: AdminClient): Promise<AnchorResult> {
   const secret = requiredEnv('STELLAR_ISSUER_SECRET');
   const contractId = requiredEnv('STELLAR_IMPACT_CONTRACT_ID');
   const rpcUrl = Deno.env.get('STELLAR_RPC_URL')?.trim() || 'https://soroban-testnet.stellar.org';
-  const network = Deno.env.get('STELLAR_NETWORK')?.trim() === 'public' ? 'public' : 'testnet';
+  const network = stellarNetwork();
   const networkPassphrase = network === 'public' ? Networks.PUBLIC : Networks.TESTNET;
   const issuer = Keypair.fromSecret(secret);
   const server = new rpc.Server(rpcUrl);
-  const source = await server.getAccount(issuer.publicKey());
   const contract = new Contract(contractId);
   const operation = contract.call(
     'issue',
@@ -113,16 +144,67 @@ async function publishCredential(draft: CredentialDraft) {
     xdr.ScVal.scvBytes(hexToBytes(draft.claim_hash)),
     nativeToScVal(BigInt(Math.floor(new Date(draft.issued_at).getTime() / 1000)), { type: 'u64' }),
   );
-  const transaction = new TransactionBuilder(source, {
-    fee: BASE_FEE,
-    networkPassphrase,
-  }).addOperation(operation).setTimeout(30).build();
-  const prepared = await server.prepareTransaction(transaction);
-  prepared.sign(issuer);
-  const submitted = await server.sendTransaction(prepared);
-  if (submitted.status === 'ERROR') throw new Error('Stellar rechazó el envío de la acreditación.');
-  await waitForTransaction(server, submitted.hash);
-  return { contractId, network, transactionHash: submitted.hash };
+  if (draft.stellar_transaction_hash) {
+    const existing = await waitForTransaction(server, draft.stellar_transaction_hash);
+    if (existing === 'success') {
+      await callRpc(adminClient, 'complete_impact_anchor', { p_credential_id: draft.credential_id });
+      return { status: 'active', transactionHash: draft.stellar_transaction_hash };
+    }
+    await callRpc(adminClient, 'fail_impact_anchor', {
+      p_credential_id: draft.credential_id,
+      p_error: existing === 'failed'
+        ? 'La transacción previa falló en Stellar.'
+        : 'La transacción previa expiró sin entrar al ledger.',
+    });
+  }
+
+  for (let buildAttempt = 0; buildAttempt < 3; buildAttempt += 1) {
+    const source = await server.getAccount(issuer.publicKey());
+    const transaction = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase,
+    }).addOperation(operation).setTimeout(30).build();
+    const prepared = await server.prepareTransaction(transaction);
+    prepared.sign(issuer);
+    const transactionHash = bytesToHex(prepared.hash());
+
+    await callRpc(adminClient, 'mark_impact_anchor_submitted', {
+      p_contract_id: contractId,
+      p_credential_id: draft.credential_id,
+      p_stellar_network: network,
+      p_transaction_hash: transactionHash,
+    });
+
+    let submissionStatus = 'TRY_AGAIN_LATER';
+    for (let sendAttempt = 0; sendAttempt < 4; sendAttempt += 1) {
+      const submitted = await server.sendTransaction(prepared);
+      submissionStatus = submitted.status;
+      if (classifySubmissionStatus(submissionStatus) !== 'retry') break;
+      await new Promise((resolve) => setTimeout(resolve, 750 * (sendAttempt + 1)));
+    }
+
+    if (classifySubmissionStatus(submissionStatus) === 'accepted') {
+      const finalStatus = await waitForTransaction(server, transactionHash);
+      if (finalStatus === 'success') {
+        await callRpc(adminClient, 'complete_impact_anchor', { p_credential_id: draft.credential_id });
+        return { status: 'active', transactionHash };
+      }
+      if (finalStatus === 'pending') return { status: 'anchor_submitted', transactionHash };
+    }
+
+    if (classifySubmissionStatus(submissionStatus) === 'retry') {
+      return { status: 'anchor_submitted', transactionHash };
+    }
+
+    await callRpc(adminClient, 'fail_impact_anchor', {
+      p_credential_id: draft.credential_id,
+      p_error: classifySubmissionStatus(submissionStatus) === 'rejected'
+        ? 'Stellar rechazó la transacción preparada.'
+        : 'La transacción falló al ejecutarse en Stellar.',
+    });
+  }
+
+  throw new Error('Stellar rechazó la acreditación después de varios intentos.');
 }
 
 Deno.serve(async (request) => {
@@ -134,8 +216,6 @@ Deno.serve(async (request) => {
   const accessToken = authorization.slice('Bearer '.length).trim();
   if (!accessToken) return json({ error: 'Sesión requerida.' }, 401);
 
-  let credentialId: string | null = null;
-  let adminClient: ReturnType<typeof createClient> | null = null;
   try {
     const body = await request.json() as ReviewBody;
     if (!body.actionId || !/^[0-9a-f-]{36}$/i.test(body.actionId)) return json({ error: 'Acción inválida.' }, 400);
@@ -148,16 +228,19 @@ Deno.serve(async (request) => {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false },
     });
-    adminClient = createClient(supabaseUrl, secretKey, { auth: { persistSession: false } });
+    const adminClient = createClient(supabaseUrl, secretKey, {
+      auth: { persistSession: false },
+    }) as unknown as AdminClient;
 
     const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
     if (userError || !userData.user) return json({ error: 'Sesión inválida.' }, 401);
 
-    const network = Deno.env.get('STELLAR_NETWORK')?.trim() === 'public' ? 'public' : 'testnet';
-    const review = await userClient.rpc('review_impact_action', {
+    const network = stellarNetwork();
+    const review = await adminClient.rpc('review_impact_action', {
       p_action_id: body.actionId,
       p_decision: body.decision,
       p_note: body.note?.slice(0, 500) || null,
+      p_reviewer_user_id: userData.user.id,
       p_stellar_network: network,
     });
     if (review.error) throw new Error(review.error.message);
@@ -165,34 +248,17 @@ Deno.serve(async (request) => {
 
     const draft = (review.data as CredentialDraft[] | null)?.[0];
     if (!draft) throw new Error('No se creó la credencial pendiente.');
-    credentialId = draft.credential_id;
-    const stellar = await publishCredential(draft);
-    const anchored = await adminClient
-      .from('impact_credentials')
-      .update({
-        anchor_error: null,
-        anchored_at: new Date().toISOString(),
-        contract_id: stellar.contractId,
-        status: 'active',
-        stellar_network: stellar.network,
-        stellar_transaction_hash: stellar.transactionHash,
-      })
-      .eq('id', draft.credential_id)
-      .eq('status', 'pending_anchor')
-      .select('id')
-      .single();
-    if (anchored.error) throw new Error(anchored.error.message);
+    if (draft.credential_status === 'active' && draft.stellar_transaction_hash) {
+      return json({ credentialId: draft.credential_id, status: 'active', transactionHash: draft.stellar_transaction_hash });
+    }
 
-    return json({ credentialId: draft.credential_id, status: 'active', transactionHash: stellar.transactionHash });
+    const stellar = await publishCredential(draft, adminClient);
+    return json(
+      { credentialId: draft.credential_id, status: stellar.status, transactionHash: stellar.transactionHash },
+      stellar.status === 'active' ? 200 : 202,
+    );
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'No pudimos confirmar el aporte.';
-    if (credentialId && adminClient) {
-      await adminClient
-        .from('impact_credentials')
-        .update({ anchor_error: message.slice(0, 500), status: 'anchor_failed' })
-        .eq('id', credentialId)
-        .eq('status', 'pending_anchor');
-    }
     console.error('No fue posible completar la acreditación técnica.', cause);
     return json({ error: 'No pudimos confirmar el aporte. Inténtalo nuevamente.' }, 400);
   }

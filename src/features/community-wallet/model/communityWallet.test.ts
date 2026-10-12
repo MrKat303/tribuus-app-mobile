@@ -6,6 +6,8 @@ describe('community impact summary', () => {
       [
         { actionTypeCode: 'neighbor_help', confirmationNote: null, description: 'Ayuda entregada', id: 'a1', occurredAt: '2026-10-01', status: 'pending', submittedAt: '2026-10-01' },
         { actionTypeCode: 'item_share', confirmationNote: null, description: 'Objeto compartido', id: 'a2', occurredAt: '2026-10-01', status: 'validated', submittedAt: '2026-10-01' },
+        { actionTypeCode: 'community_activity', confirmationNote: null, description: 'Actividad en cadena', id: 'a3', occurredAt: '2026-10-01', status: 'anchoring', submittedAt: '2026-10-01' },
+        { actionTypeCode: 'item_share', confirmationNote: null, description: 'Anclaje por reintentar', id: 'a4', occurredAt: '2026-10-01', status: 'anchor_failed', submittedAt: '2026-10-01' },
       ],
       [
         { actionTypeCode: 'neighbor_help', anchoredAt: '2026-10-02', claimHash: 'a', contractId: 'c', id: 'c1', issuedAt: '2026-10-02', network: 'testnet', onchainCredentialId: 'o1', points: 100, ruleVersion: 1, status: 'active', transactionHash: 't1' },
@@ -13,7 +15,7 @@ describe('community impact summary', () => {
       ],
     );
 
-    expect(result).toEqual({ activeCredentials: 1, pendingActions: 1, totalPoints: 100 });
+    expect(result).toEqual({ activeCredentials: 1, pendingActions: 3, totalPoints: 100 });
   });
 });
 
