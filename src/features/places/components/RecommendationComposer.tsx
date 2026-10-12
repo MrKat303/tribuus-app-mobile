@@ -1,6 +1,5 @@
-import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
@@ -15,16 +14,7 @@ export function RecommendationComposer({ onClose, onSubmit, placeName, visible }
   const styles = useStyles();
   const [text, setText] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [photoUri, setPhotoUri] = useState<string | undefined>();
   const canSubmit = text.trim().length >= 12;
-
-  async function pickPhoto() {
-    try {
-      const picker = await import('expo-image-picker');
-      const result = await picker.launchImageLibraryAsync({ allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'], quality: 0.82 });
-      if (!result.canceled) setPhotoUri(result.assets[0].uri);
-    } catch { Alert.alert('Galería no disponible', 'Puedes continuar sin agregar una foto.'); }
-  }
 
   return <Modal animationType="fade" onRequestClose={onClose} statusBarTranslucent transparent visible={visible}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
@@ -36,9 +26,7 @@ export function RecommendationComposer({ onClose, onSubmit, placeName, visible }
         <AppText style={styles.title} variant="heading">¿Qué hace especial este lugar?</AppText><AppText style={styles.subtitle}>Compártelo con tu comunidad en pocas palabras.</AppText>
         <TextInput accessibilityLabel="Recomendación" maxLength={420} multiline onChangeText={setText} placeholder="Cuéntanos qué te gustó, qué pedir o por qué vale la pena ir…" placeholderTextColor={colors.textMuted} style={styles.input} textAlignVertical="top" value={text} />
         <AppText style={styles.label} variant="caption">ETIQUETAS DE LA COMUNIDAD</AppText><View style={styles.tags}>{PLACE_TAGS.map((tag) => { const selected = tags.includes(tag); return <Pressable key={tag} onPress={() => setTags((current) => selected ? current.filter((item) => item !== tag) : [...current, tag])} style={[styles.tag, selected && styles.tagSelected]}><AppText style={[styles.tagText, selected && styles.tagTextSelected]} variant="caption">{tag}</AppText></Pressable>; })}</View>
-        {photoUri ? <View style={styles.preview}><Image contentFit="cover" source={{ uri: photoUri }} style={styles.image} /><Pressable onPress={() => setPhotoUri(undefined)} style={styles.remove}><AppIcon color={colors.textOnDark} name="x" size={16} /></Pressable></View> : <Pressable onPress={() => void pickPhoto()} style={styles.photoButton}><AppIcon color={colors.primaryDark} name="image" size={18} /><AppText style={styles.photoText} variant="bodyStrong">Agregar foto de la comunidad</AppText></Pressable>}
-        <Pressable disabled={!canSubmit} onPress={() => onSubmit({ photoUri, tags, text: text.trim() })} style={[styles.submit, !canSubmit && styles.disabled]}><AppText style={styles.submitText} variant="bodyStrong">Publicar recomendación</AppText><AppIcon color={colors.textOnPrimary} name="arrow-right" size={18} /></Pressable>
-        <AppText style={styles.note} variant="caption">Se guardará durante esta sesión.</AppText>
+        <Pressable disabled={!canSubmit} onPress={() => onSubmit({ tags, text: text.trim() })} style={[styles.submit, !canSubmit && styles.disabled]}><AppText style={styles.submitText} variant="bodyStrong">Publicar recomendación</AppText><AppIcon color={colors.textOnPrimary} name="arrow-right" size={18} /></Pressable>
       </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>
@@ -64,13 +52,7 @@ const useStyles = makeThemedStyles((colors) => ({
   tagSelected: { backgroundColor: colors.primarySoft, borderColor: colors.primaryDark },
   tagText: { color: colors.textMuted, fontSize: 10 },
   tagTextSelected: { color: colors.primaryDark, fontFamily: typography.bodySemiBold },
-  photoButton: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 15, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 14, minHeight: 48 },
-  photoText: { color: colors.primaryDark, fontSize: 11 },
-  preview: { marginTop: 14, position: 'relative' },
-  image: { aspectRatio: 16 / 9, borderRadius: 16, width: '100%' },
-  remove: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.68)', borderRadius: radii.pill, height: 32, justifyContent: 'center', position: 'absolute', right: 8, top: 8, width: 32 },
   submit: { alignItems: 'center', backgroundColor: colors.primaryDark, borderRadius: 15, flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 16, minHeight: 50 },
   submitText: { color: colors.textOnPrimary, fontSize: 13 },
   disabled: { opacity: 0.34 },
-  note: { color: colors.textMuted, marginTop: 8, textAlign: 'center' },
 }));

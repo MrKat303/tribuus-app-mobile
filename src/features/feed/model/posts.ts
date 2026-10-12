@@ -1,11 +1,5 @@
 import type { CommunityPost, CommunityPostDraft } from './community';
 
-export const currentCommunityUser = {
-  author: 'Jaime M.',
-  initials: 'JM',
-  location: 'Providencia',
-} as const;
-
 export type CommunityUserIdentity = {
   author: string;
   authorId?: string;
@@ -20,7 +14,7 @@ export type PostsAction =
   | { type: 'bookmarkToggled'; postId: string }
   | { type: 'pollOptionSelected'; postId: string; optionId: string };
 
-export function createCommunityPost(draft: CommunityPostDraft, id: string, user: CommunityUserIdentity = currentCommunityUser): CommunityPost {
+export function createCommunityPost(draft: CommunityPostDraft, id: string, user: CommunityUserIdentity): CommunityPost {
   return {
     ...draft,
     author: user.author,

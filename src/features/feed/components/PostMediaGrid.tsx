@@ -20,8 +20,6 @@ function MediaCell({ extraCount = 0, image, onRemove, recyclingKey }: {
   recyclingKey: string;
 }) {
   const { colors } = useAppAppearance();
-  const source = image.variants?.feed.uri ?? image.uri;
-  const placeholder = image.variants?.thumbnail.uri;
 
   return (
     <View style={styles.cell}>
@@ -29,10 +27,8 @@ function MediaCell({ extraCount = 0, image, onRemove, recyclingKey }: {
         accessibilityLabel="Foto de la publicación"
         cachePolicy="memory-disk"
         contentFit="cover"
-        placeholder={placeholder ? { uri: placeholder } : undefined}
-        placeholderContentFit="cover"
         recyclingKey={`${recyclingKey}-${image.id}`}
-        source={{ uri: source }}
+        source={{ uri: image.uri }}
         style={StyleSheet.absoluteFill}
         transition={180}
       />

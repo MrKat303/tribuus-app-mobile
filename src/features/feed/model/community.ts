@@ -22,22 +22,9 @@ export type CommunityPoll = {
   question: string;
 };
 
-export type CommunityPostImageVariant = {
-  height: number;
-  uri: string;
-  width: number;
-};
-
-export type CommunityPostImageVariants = {
-  feed: CommunityPostImageVariant;
-  full: CommunityPostImageVariant;
-  thumbnail: CommunityPostImageVariant;
-};
-
 export type CommunityPostImage = {
   id: string;
   uri: string;
-  variants?: CommunityPostImageVariants;
 };
 
 export type CommunityPost = {
@@ -55,7 +42,6 @@ export type CommunityPost = {
   audioName?: string;
   audioUri?: string;
   images?: CommunityPostImage[];
-  imageVariants?: CommunityPostImageVariants;
   imageUri?: string;
   poll?: CommunityPoll;
   selectedPollOptionId?: string;
@@ -69,7 +55,6 @@ export type CommunityPostDraft = {
   category?: CommunityPostCategory;
   content: string;
   images?: CommunityPostImage[];
-  imageVariants?: CommunityPostImageVariants;
   imageUri?: string;
   location?: string;
   poll?: CommunityPoll;

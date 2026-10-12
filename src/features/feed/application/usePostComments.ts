@@ -25,8 +25,10 @@ export function usePostComments({ identity, onPostInvalidated, postId }: UsePost
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const requestSequence = useRef(0);
+  const hasLoadedOlderPages = useRef(false);
+  const loadingMore = useRef(false);
 
-  const replaceWithFirstPage = useCallback(async () => {
+  const loadFirstPage = useCallback(async (preserveOlderPages: boolean) => {
     const requestId = ++requestSequence.current;
     if (!postId) {
       setComments([]);
@@ -36,28 +38,43 @@ export function usePostComments({ identity, onPostInvalidated, postId }: UsePost
 
     const page = await listPostComments(postId);
     if (requestId !== requestSequence.current) return;
-    setComments(page.comments);
-    setCursor(page.cursor);
+    if (preserveOlderPages && hasLoadedOlderPages.current) {
+      setComments((current) => {
+        const freshIds = new Set(page.comments.map(({ id }) => id));
+        const older = current.filter(({ id }) => (
+          !id.startsWith('pending-comment-') && !freshIds.has(id)
+        ));
+        const pending = current.filter(({ id }) => id.startsWith('pending-comment-'));
+        return [...older, ...page.comments, ...pending];
+      });
+    } else {
+      hasLoadedOlderPages.current = false;
+      setComments(page.comments);
+      setCursor(page.cursor);
+    }
     setError(null);
   }, [postId]);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      await replaceWithFirstPage();
+      await loadFirstPage(false);
     } catch (cause) {
       setError(feedErrorMessage(cause));
       throw cause;
     } finally {
       setIsLoading(false);
     }
-  }, [replaceWithFirstPage]);
+  }, [loadFirstPage]);
 
   const loadMore = useCallback(async () => {
-    if (!postId || !cursor || isLoadingMore) return;
+    if (!postId || !cursor || loadingMore.current) return;
+    loadingMore.current = true;
+    const requestId = requestSequence.current;
     setIsLoadingMore(true);
     try {
       const page = await listPostComments(postId, cursor);
+      if (requestId !== requestSequence.current) return;
       setComments((current) => {
         const existingIds = new Set(current.map(({ id }) => id));
         return [
@@ -65,14 +82,16 @@ export function usePostComments({ identity, onPostInvalidated, postId }: UsePost
           ...current,
         ];
       });
+      hasLoadedOlderPages.current = true;
       setCursor(page.cursor);
       setError(null);
     } catch (cause) {
       setError(feedErrorMessage(cause));
     } finally {
+      loadingMore.current = false;
       setIsLoadingMore(false);
     }
-  }, [cursor, isLoadingMore, postId]);
+  }, [cursor, postId]);
 
   const addComment = useCallback(async (content: string, replyToCommentId?: string) => {
     if (!postId) return;
@@ -92,9 +111,17 @@ export function usePostComments({ identity, onPostInvalidated, postId }: UsePost
     setIsSubmitting(true);
     try {
       const persistedId = await createPostComment(postId, content, identity, replyToCommentId);
-      setComments((current) => current.map((comment) => comment.id === optimisticId
-        ? { ...comment, id: persistedId }
-        : comment));
+      setComments((current) => {
+        const mapped = current.map((comment) => comment.id === optimisticId
+          ? { ...comment, id: persistedId }
+          : comment);
+        const seenIds = new Set<string>();
+        return mapped.filter(({ id }) => {
+          if (seenIds.has(id)) return false;
+          seenIds.add(id);
+          return true;
+        });
+      });
       setError(null);
       onPostInvalidated(postId);
     } catch (cause) {
@@ -139,10 +166,10 @@ export function usePostComments({ identity, onPostInvalidated, postId }: UsePost
   useEffect(() => {
     if (!postId) return undefined;
     return subscribeToPostComments(postId, () => {
-      void replaceWithFirstPage().catch((cause) => setError(feedErrorMessage(cause)));
+      void loadFirstPage(true).catch((cause) => setError(feedErrorMessage(cause)));
       onPostInvalidated(postId);
     });
-  }, [onPostInvalidated, postId, replaceWithFirstPage]);
+  }, [loadFirstPage, onPostInvalidated, postId]);
 
   return useMemo(() => ({
     addComment,

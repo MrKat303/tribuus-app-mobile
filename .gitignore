@@ -43,6 +43,7 @@ yarn-error.*
 
 # tests
 coverage/
+/stellar/target/
 
 example
 
@@ -76,6 +77,7 @@ copilot-instructions.md
 .windsurf/
 **/.windsurf/
 .kilo/
+.tooling/
 
 # Informes y documentación internos (mantener en el equipo local)
 /TECHNICAL_AUDIT*.md

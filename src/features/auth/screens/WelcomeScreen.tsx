@@ -25,7 +25,7 @@ export default function WelcomeScreen() {
         <BrandMark />
         <View style={styles.location}>
           <Feather color={colors.primaryDark} name="map-pin" size={12} />
-          <AppText style={styles.locationText} variant="caption">PROVIDENCIA</AppText>
+          <AppText style={styles.locationText} variant="caption">TU COMUNIDAD</AppText>
         </View>
       </View>
 
@@ -66,7 +66,7 @@ export default function WelcomeScreen() {
           style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}>
           <AppText style={styles.loginLabel} variant="bodyStrong">Ya tengo una cuenta</AppText>
         </Pressable>
-        <AppText style={styles.demoNote} variant="caption">
+        <AppText style={styles.trustNote} variant="caption">
           Tu comunidad local, con identidad y privacidad
         </AppText>
       </View>
@@ -101,6 +101,6 @@ const useStyles = makeThemedStyles((colors) => ({
   enterLabel: { color: colors.textOnPrimary, fontFamily: typography.bodySemiBold, fontSize: 14 },
   loginButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, justifyContent: 'center', minHeight: 50, paddingHorizontal: spacing.lg },
   loginLabel: { color: colors.text, fontSize: 14 },
-  demoNote: { color: colors.textMuted, fontFamily: typography.bodyMedium, fontSize: 10, textAlign: 'center' },
+  trustNote: { color: colors.textMuted, fontFamily: typography.bodyMedium, fontSize: 10, textAlign: 'center' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
 }));

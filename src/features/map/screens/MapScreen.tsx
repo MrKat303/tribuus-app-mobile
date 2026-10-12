@@ -1,9 +1,8 @@
 import Mapbox, { Camera, LocationPuck, MapView } from '@rnmapbox/maps';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppIcon } from '@/components/ui/AppIcon';
 import { AppText } from '@/components/ui/AppText';
 import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { usePlaces } from '@/features/places/application/PlacesProvider';
@@ -25,24 +24,19 @@ import { useMapSearch } from '../hooks/useMapSearch';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { clusterCommunityPlaces, communityVisualBudget, type CommunityCluster, nowVisualBudget } from '../model/clustering';
 import {
-  communitySignalLabel,
   contentKindForEvent,
   COUNTRY_CAMERA_BOUNDS,
   COUNTRY_MIN_ZOOM,
   DEFAULT_MAP_ZOOM,
   EVENT_MARKER_MIN_ZOOM,
-  FRIENDS_NEARBY,
-  INITIAL_EVENTS,
   isCoordinateInViewport,
   MAPBOX_TOKEN,
   type MapEvent,
   type EventCategory,
   type MapFilter,
-  PLACE_REACTIONS,
   SANTIAGO,
 } from '../model/map';
 import { mapRelevanceScore } from '../model/relevance';
-import { iconForEvent, markerBackground, markerColor } from '../ui/mapPresentation';
 
 const placeEventCategory: Record<TribuusPlace['providerData']['category'], EventCategory> = {
   Bar: 'Bar', Cafetería: 'Café', Comercio: 'Servicio', Otro: 'Servicio', Panadería: 'Café', Restaurante: 'Restaurante',
@@ -58,9 +52,9 @@ type RecommendationTarget = { candidate: ExternalPlaceCandidate; kind: 'external
 Mapbox.setAccessToken(MAPBOX_TOKEN);
 
 export function MapScreen() {
-  const { colors: themeColors, themeMode } = useAppAppearance();
+  const { themeMode } = useAppAppearance();
   const styles = useStyles();
-  const { createCommunityPlace, findPotentialDuplicates, places, recommendExternalPlace, recommendPlace, searchPlaces } = usePlaces();
+  const { createCommunityPlace, findPotentialDuplicates, loadPlacesInView, places, recommendExternalPlace, recommendPlace, searchPlaces } = usePlaces();
   const insets = useSafeAreaInsets();
   const bottomNavigationOffset = Math.max(insets.bottom, 12) + 80;
   const nearbySheetOffset = bottomNavigationOffset + 12;
@@ -84,16 +78,24 @@ export function MapScreen() {
     .filter((place) => isCoordinateInViewport(place.providerData.coordinate, viewportBounds))
     .sort((first, second) => placeRankingScore(second, mapCenter) - placeRankingScore(first, mapCenter))
     .slice(0, placeVisualBudget(zoomLevel)), [mapCenter, places, viewportBounds, zoomLevel]);
-  const events = useMemo(() => [
-    ...INITIAL_EVENTS.filter((event) => event.category !== 'Café' && event.category !== 'Restaurante' && event.category !== 'Bar'),
-    ...socialPlaces.map(placeAsMapEvent),
-  ], [socialPlaces]);
-  const [selectedEvent, setSelectedEvent] = useState<MapEvent>(INITIAL_EVENTS[0]);
+  const events = useMemo(() => socialPlaces.map(placeAsMapEvent), [socialPlaces]);
+  const [selectedEvent, setSelectedEvent] = useState<MapEvent | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<TribuusPlace | null>(null);
   const [recommendationTarget, setRecommendationTarget] = useState<RecommendationTarget | null>(null);
   const [manualComposerVisible, setManualComposerVisible] = useState(false);
-  const [placeReactions, setPlaceReactions] = useState<Record<string, string>>({});
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!viewportBounds) return;
+    void loadPlacesInView([
+      viewportBounds.sw[0],
+      viewportBounds.sw[1],
+      viewportBounds.ne[0],
+      viewportBounds.ne[1],
+    ]).catch(() => {
+      Alert.alert('No pudimos cargar los lugares', 'Revisa tu conexión e inténtalo nuevamente.');
+    });
+  }, [loadPlacesInView, viewportBounds]);
   const tribuusSearchResults = useMemo(() => searchPlaces(searchQuery)
     .sort((first, second) => {
       const firstMatchesFilter = activeFilter === 'Todos' || placeEventCategory[first.providerData.category] === activeFilter;
@@ -127,7 +129,7 @@ export function MapScreen() {
         - mapRelevanceScore(first, { exploredCenter: mapCenter, userCoordinate }));
   }, [activeFilter, events, mapCenter, searchQuery, userCoordinate, viewportBounds]);
 
-  const displayedEvent = visibleEvents.find((event) => event.id === selectedEvent.id) ?? visibleEvents[0];
+  const displayedEvent = visibleEvents.find((event) => event.id === selectedEvent?.id) ?? visibleEvents[0];
   const { clusters: communityClusters, markerEvents } = useMemo(() => {
     if (zoomLevel < EVENT_MARKER_MIN_ZOOM) return { clusters: [], markerEvents: [] };
 
@@ -149,13 +151,6 @@ export function MapScreen() {
       ],
     };
   }, [mapCenter, userCoordinate, visibleEvents, zoomLevel]);
-  const nearbyRadiusKm = zoomLevel >= 15 ? 0.75 : zoomLevel >= 14.3 ? 1.25 : 2;
-  const nearbyEvents = useMemo(
-    () => markerEvents.filter((event) => distanceInKm(mapCenter, event.coordinate) <= nearbyRadiusKm),
-    [mapCenter, markerEvents, nearbyRadiusKm],
-  );
-  const selectedNearby = nearbyEvents.find((event) => event.id === selectedEvent.id) ?? nearbyEvents[0];
-  const selectedDistance = selectedNearby ? distanceInKm(mapCenter, selectedNearby.coordinate) : 0;
   const currentSelectedPlace = selectedPlace ? places.find((place) => place.id === selectedPlace.id) ?? selectedPlace : null;
 
   const selectEvent = useCallback((event: MapEvent) => {
@@ -184,11 +179,15 @@ export function MapScreen() {
   }, []);
   const handleLocate = useCallback(() => void locateUser(), [locateUser]);
   const focusSearch = useCallback(() => setSearchFocused(true), [setSearchFocused]);
-  const submitRecommendation = useCallback((draft: RecommendationDraft) => {
+  const submitRecommendation = useCallback(async (draft: RecommendationDraft) => {
     if (!recommendationTarget) return;
-    if (recommendationTarget.kind === 'external') recommendExternalPlace(recommendationTarget.candidate, draft);
-    else recommendPlace(recommendationTarget.place.id, draft);
-    setRecommendationTarget(null);
+    try {
+      if (recommendationTarget.kind === 'external') await recommendExternalPlace(recommendationTarget.candidate, draft);
+      else await recommendPlace(recommendationTarget.place.id, draft);
+      setRecommendationTarget(null);
+    } catch (error) {
+      Alert.alert('No se pudo publicar', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
+    }
   }, [recommendExternalPlace, recommendPlace, recommendationTarget]);
 
   return (
@@ -218,10 +217,10 @@ export function MapScreen() {
           events={markerEvents}
           onSelectCluster={selectCluster}
           onSelectEvent={selectEvent}
-          reactions={placeReactions}
+          reactions={{}}
           searchPlace={null}
           selectedClusterId={selectedClusterId}
-          selectedEventId={selectedEvent.id}
+          selectedEventId={selectedEvent?.id ?? ''}
           zoomLevel={zoomLevel}
         />
       </MapView>
@@ -255,52 +254,6 @@ export function MapScreen() {
             place={currentSelectedPlace}
           />
         </View>
-      ) : zoomLevel >= 13.7 && selectedNearby ? (
-        <View style={[styles.nearbySheet, { bottom: nearbySheetOffset }]}>
-          <View style={[styles.placeCard, { backgroundColor: themeColors.surfaceElevated, borderColor: themeColors.border }]}>
-            <View style={styles.placeHeader}>
-              <View style={[styles.placeAvatar, { backgroundColor: markerBackground[selectedNearby.category] }]}>
-                <AppIcon color={markerColor[selectedNearby.category]} name={iconForEvent(selectedNearby)} size={18} />
-              </View>
-              <View style={styles.placeHeadingCopy}>
-                <View style={styles.placeTitleRow}>
-                  <AppText numberOfLines={1} style={styles.placeTitle} variant="bodyStrong">{selectedNearby.title}</AppText>
-                  {placeReactions[selectedNearby.id] ? <AppText style={styles.cardReactionEmoji}>{placeReactions[selectedNearby.id]}</AppText> : null}
-                </View>
-                <AppText style={styles.placeCategory} variant="caption">{selectedNearby.category}{selectedNearby.alertKind ? ` · ${selectedNearby.alertKind}` : ''} · {selectedDistance.toFixed(1)} km</AppText>
-                <View style={styles.communityProof}>
-                  <AppIcon
-                    color={contentKindForEvent(selectedNearby) === 'activity' ? markerColor[selectedNearby.category] : '#D94A4A'}
-                    filled={contentKindForEvent(selectedNearby) === 'community-discovery'}
-                    name={contentKindForEvent(selectedNearby) === 'activity' ? 'alert-circle' : 'heart'}
-                    size={12}
-                  />
-                  <AppText style={styles.communityProofText} variant="caption">{communitySignalLabel(selectedNearby)}</AppText>
-                </View>
-              </View>
-              <View style={[styles.nearbyCount]}><AppText style={styles.nearbyCountText} variant="caption">{nearbyEvents.length}</AppText></View>
-            </View>
-            <View style={styles.placeMeta}>
-              <View style={styles.metaRow}><AppIcon color={themeColors.textMuted} name="map-pin" size={12} /><AppText numberOfLines={1} style={styles.metaText} variant="caption">{selectedNearby.location}, Santiago</AppText></View>
-              <View style={styles.metaRow}><AppIcon color={themeColors.primaryDark} name="clock" size={12} /><AppText numberOfLines={1} style={styles.openText} variant="caption">{selectedNearby.date}</AppText></View>
-            </View>
-            <View style={styles.socialRow}>
-              <View style={styles.friendsBlock}>
-                <AppText style={styles.socialLabel} variant="caption">Amigos que fueron</AppText>
-                <View style={styles.friendAvatars}>{FRIENDS_NEARBY.map((friend, index) => <View key={friend} style={[styles.friendAvatar, index > 0 && styles.friendAvatarOverlap]}><AppText style={styles.friendInitials} variant="caption">{friend}</AppText></View>)}</View>
-              </View>
-              <View style={styles.reactionsBlock}>
-                <AppText style={styles.socialLabel} variant="caption">Reacciona</AppText>
-                <View style={styles.reactionRow}>
-                  {PLACE_REACTIONS.map((emoji) => {
-                    const selected = placeReactions[selectedNearby.id] === emoji;
-                    return <Pressable accessibilityLabel={`Reaccionar con ${emoji}`} hitSlop={6} key={emoji} onPress={() => setPlaceReactions((current) => ({ ...current, [selectedNearby.id]: selected ? '' : emoji }))} style={({ pressed }) => [styles.reactionButton, selected && styles.reactionButtonSelected, pressed && styles.pressed]}><AppText style={styles.reactionEmoji}>{emoji}</AppText></Pressable>;
-                  })}
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
       ) : null}
 
       {recommendationTarget ? <RecommendationComposer
@@ -313,7 +266,11 @@ export function MapScreen() {
         findDuplicates={findPotentialDuplicates}
         initialCoordinate={mapCenter}
         onClose={() => setManualComposerVisible(false)}
-        onCreate={(draft, recommendation) => { createCommunityPlace(draft, recommendation); setManualComposerVisible(false); }}
+        onCreate={(draft, recommendation) => {
+          void createCommunityPlace(draft, recommendation)
+            .then(() => setManualComposerVisible(false))
+            .catch((error) => Alert.alert('No se pudo crear el lugar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'));
+        }}
         onRecommendExisting={(place) => { setManualComposerVisible(false); setRecommendationTarget({ kind: 'tribuus', place }); }}
         visible
       /> : null}

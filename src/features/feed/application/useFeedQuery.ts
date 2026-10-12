@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 
 import { feedErrorMessage } from '@/features/feed/application/feedError';
 import {
@@ -11,51 +19,121 @@ import {
   listFeedPosts,
 } from '@/features/feed/data/feedRepository';
 import type { CommunityPost } from '@/features/feed/model/community';
+import type { FeedFilter } from '@/features/feed/model/feed';
 
 export type FeedPostsSetter = Dispatch<SetStateAction<CommunityPost[]>>;
 export type FeedErrorSetter = Dispatch<SetStateAction<string | null>>;
 
-export function useFeedQuery(identity: FeedIdentity) {
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [cursor, setCursor] = useState<FeedCursor | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+type FeedPageState = {
+  cursor: FeedCursor | null;
+  isLoaded: boolean;
+  isLoading: boolean;
+  isLoadingMore: boolean;
+  posts: CommunityPost[];
+};
+
+// The unfiltered page is last so its freshest copy wins when mutation state is
+// deduplicated across category caches.
+const FILTERS: FeedFilter[] = ['evento', 'recomendación', 'comunidad', 'todo'];
+
+function emptyPage(): FeedPageState {
+  return {
+    cursor: null,
+    isLoaded: false,
+    isLoading: false,
+    isLoadingMore: false,
+    posts: [],
+  };
+}
+
+function initialPages(): Record<FeedFilter, FeedPageState> {
+  return {
+    comunidad: emptyPage(),
+    evento: emptyPage(),
+    recomendación: emptyPage(),
+    todo: emptyPage(),
+  };
+}
+
+export function useFeedQuery(identity: FeedIdentity, activeFilter: FeedFilter) {
+  const [pages, setPages] = useState(initialPages);
   const [error, setError] = useState<string | null>(null);
+  const requestSequences = useRef<Record<FeedFilter, number>>({
+    comunidad: 0,
+    evento: 0,
+    recomendación: 0,
+    todo: 0,
+  });
+  const loadingMoreFilters = useRef(new Set<FeedFilter>());
+  const activePage = pages[activeFilter];
 
-  const reloadFirstPage = useCallback(async () => {
-    const page = await listFeedPosts();
-    setPosts(page.posts);
-    setCursor(page.cursor);
-    setError(null);
-  }, []);
+  const loadFirstPage = useCallback(async (filter: FeedFilter, showLoading: boolean) => {
+    const requestId = ++requestSequences.current[filter];
+    if (showLoading) {
+      setPages((current) => ({
+        ...current,
+        [filter]: { ...current[filter], isLoading: true },
+      }));
+    }
 
-  const syncFirstPage = useCallback(async () => {
     try {
       await ensureFeedIdentity(identity);
-      await reloadFirstPage();
+      const page = await listFeedPosts(undefined, filter === 'todo' ? undefined : filter);
+      if (requestId !== requestSequences.current[filter]) return;
+      setPages((current) => ({
+        ...current,
+        [filter]: {
+          cursor: page.cursor,
+          isLoaded: true,
+          isLoading: false,
+          isLoadingMore: false,
+          posts: page.posts,
+        },
+      }));
+      setError(null);
     } catch (cause) {
-      setError(feedErrorMessage(cause));
+      if (requestId === requestSequences.current[filter]) {
+        setPages((current) => ({
+          ...current,
+          [filter]: { ...current[filter], isLoading: false },
+        }));
+        setError(feedErrorMessage(cause));
+      }
       throw cause;
     }
-  }, [identity, reloadFirstPage]);
+  }, [identity]);
 
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      await syncFirstPage();
-    } finally {
-      setIsLoading(false);
-    }
-  }, [syncFirstPage]);
+  // Publishing refreshes the canonical unfiltered page so switching back to
+  // "todo" cannot briefly expose a stale category cache.
+  const reloadFirstPage = useCallback(() => loadFirstPage('todo', false), [loadFirstPage]);
+  const syncFirstPage = useCallback(
+    () => loadFirstPage(activeFilter, false),
+    [activeFilter, loadFirstPage],
+  );
+  const refresh = useCallback(
+    () => loadFirstPage(activeFilter, true),
+    [activeFilter, loadFirstPage],
+  );
 
   const syncPost = useCallback(async (postId: string) => {
     try {
       const post = await getFeedPost(postId);
-      setPosts((current) => {
-        const currentIndex = current.findIndex(({ id }) => id === postId);
-        if (!post) return currentIndex === -1 ? current : current.filter(({ id }) => id !== postId);
-        if (currentIndex === -1) return [post, ...current];
-        return current.map((currentPost) => currentPost.id === postId ? post : currentPost);
+      setPages((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const filter of FILTERS) {
+          const currentPosts = current[filter].posts;
+          const currentIndex = currentPosts.findIndex(({ id }) => id === postId);
+          if (currentIndex === -1) continue;
+
+          const belongsToPage = post && (filter === 'todo' || post.category === filter);
+          const posts = belongsToPage
+            ? currentPosts.map((currentPost) => currentPost.id === postId ? post : currentPost)
+            : currentPosts.filter(({ id }) => id !== postId);
+          next[filter] = { ...current[filter], posts };
+          changed = true;
+        }
+        return changed ? next : current;
       });
       setError(null);
     } catch (cause) {
@@ -65,36 +143,89 @@ export function useFeedQuery(identity: FeedIdentity) {
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (!cursor || isLoadingMore) return;
-    setIsLoadingMore(true);
+    const pageState = pages[activeFilter];
+    if (!pageState.cursor || loadingMoreFilters.current.has(activeFilter)) return;
+    loadingMoreFilters.current.add(activeFilter);
+    const requestId = requestSequences.current[activeFilter];
+    setPages((current) => ({
+      ...current,
+      [activeFilter]: { ...current[activeFilter], isLoadingMore: true },
+    }));
+
     try {
-      const page = await listFeedPosts(cursor);
-      setPosts((current) => {
-        const existingIds = new Set(current.map((post) => post.id));
-        return [...current, ...page.posts.filter((post) => !existingIds.has(post.id))];
+      const page = await listFeedPosts(
+        pageState.cursor,
+        activeFilter === 'todo' ? undefined : activeFilter,
+      );
+      if (requestId !== requestSequences.current[activeFilter]) return;
+      setPages((current) => {
+        const existingIds = new Set(current[activeFilter].posts.map((post) => post.id));
+        return {
+          ...current,
+          [activeFilter]: {
+            ...current[activeFilter],
+            cursor: page.cursor,
+            isLoadingMore: false,
+            posts: [
+              ...current[activeFilter].posts,
+              ...page.posts.filter((post) => !existingIds.has(post.id)),
+            ],
+          },
+        };
       });
-      setCursor(page.cursor);
       setError(null);
     } catch (cause) {
       setError(feedErrorMessage(cause));
     } finally {
-      setIsLoadingMore(false);
+      loadingMoreFilters.current.delete(activeFilter);
+      setPages((current) => ({
+        ...current,
+        [activeFilter]: { ...current[activeFilter], isLoadingMore: false },
+      }));
     }
-  }, [cursor, isLoadingMore]);
+  }, [activeFilter, pages]);
+
+  const setPosts = useCallback<FeedPostsSetter>((action) => {
+    setPages((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const filter of FILTERS) {
+        const posts = typeof action === 'function' ? action(current[filter].posts) : action;
+        if (posts !== current[filter].posts) {
+          next[filter] = { ...current[filter], posts };
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, []);
+
+  const mutationPosts = useMemo(() => {
+    const uniquePosts = new Map<string, CommunityPost>();
+    for (const filter of FILTERS) {
+      for (const post of pages[filter].posts) uniquePosts.set(post.id, post);
+    }
+    return [...uniquePosts.values()];
+  }, [pages]);
 
   useEffect(() => {
-    // The provider must hydrate from the external Supabase store when identity changes.
+    // Filters own independent server-side pages. Switching category therefore
+    // cannot mistake a partially loaded unfiltered page for a complete result.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void syncFirstPage().catch(() => undefined).finally(() => setIsLoading(false));
-  }, [syncFirstPage]);
+    void loadFirstPage(activeFilter, !pages[activeFilter].isLoaded).catch(() => undefined);
+    // Loading is intentionally keyed to identity/filter, not the mutable page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilter, identity, loadFirstPage]);
 
   return {
-    cursor,
+    allPosts: pages.todo.posts,
+    cursor: activePage.cursor,
     error,
-    isLoading,
-    isLoadingMore,
+    isLoading: activePage.isLoading || !activePage.isLoaded,
+    isLoadingMore: activePage.isLoadingMore,
     loadMore,
-    posts,
+    mutationPosts,
+    posts: activePage.posts,
     refresh,
     reloadFirstPage,
     setError,

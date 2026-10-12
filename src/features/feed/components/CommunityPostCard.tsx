@@ -19,7 +19,6 @@ import Animated, {
 
 import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { useAuth } from '@/features/auth/application/AuthProvider';
-import { useFeed } from '@/features/feed/application/FeedProvider';
 import { FormattedPostText } from '@/features/feed/components/FormattedPostText';
 import { PostMediaGrid } from '@/features/feed/components/PostMediaGrid';
 import { PostPoll } from '@/features/feed/components/PostPoll';
@@ -31,6 +30,10 @@ import { AppText } from '@/components/ui/AppText';
 
 type CommunityPostCardProps = {
   isNew?: boolean;
+  onDeletePost: (postId: string) => Promise<void>;
+  onSelectPollOption: (postId: string, optionId: string) => Promise<void>;
+  onToggleBookmark: (postId: string) => Promise<void>;
+  onToggleLike: (postId: string) => Promise<void>;
   post: CommunityPost;
 };
 
@@ -40,13 +43,19 @@ const categoryStyle: Record<CommunityPostCategory, { background: string; border:
   recomendación: { background: '#FFF1DB', border: '#F2DFC0', color: '#B06B19', icon: 'star', label: 'Recomendación', surface: '#FFFEFA' },
 };
 
-export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false, post }: CommunityPostCardProps) {
+export const CommunityPostCard = memo(function CommunityPostCard({
+  isNew = false,
+  onDeletePost,
+  onSelectPollOption,
+  onToggleBookmark,
+  onToggleLike,
+  post,
+}: CommunityPostCardProps) {
   const { colors: themeColors, isDark } = useAppAppearance();
   const styles = useStyles();
   const router = useRouter();
   const { session } = useAuth();
   const reduceMotion = useReducedMotion();
-  const { deletePost, selectPollOption, toggleBookmark: togglePostBookmark, toggleLike: togglePostLike } = useFeed();
   const audioPlayerRef = useRef<import('expo-audio').AudioPlayer | null>(null);
   const visiblePostIdRef = useRef(post.id);
   visiblePostIdRef.current = post.id;
@@ -68,11 +77,11 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   const likeCount = post.likes;
   const postCategory = categoryStyle[post.category];
   const isOwnPost = Boolean(session?.user.id && post.authorId === session.user.id);
-  const feedImageUri = post.imageVariants?.feed.uri ?? post.imageUri;
+  const feedImageUri = post.imageUri;
   const mediaImages = post.images?.length
     ? post.images
     : feedImageUri
-      ? [{ id: `${post.id}-legacy-image`, uri: feedImageUri, variants: post.imageVariants }]
+      ? [{ id: `${post.id}-legacy-image`, uri: feedImageUri }]
       : [];
   const postEntrance = isNew
     ? reduceMotion
@@ -86,7 +95,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   }, [post.id]);
 
   function toggleLike() {
-    void togglePostLike(post.id).catch((error) => {
+    void onToggleLike(post.id).catch((error) => {
       Alert.alert('No se pudo registrar tu voto', error instanceof Error ? error.message : 'Intenta nuevamente.');
     });
     likeScale.set(withTiming(0.94, { duration: 70 }, () => {
@@ -95,7 +104,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
   }
 
   function toggleBookmark() {
-    void togglePostBookmark(post.id).catch((error) => {
+    void onToggleBookmark(post.id).catch((error) => {
       Alert.alert('No se pudo guardar', error instanceof Error ? error.message : 'Intenta nuevamente.');
     });
     saveScale.set(withTiming(0.94, { duration: 70 }, () => {
@@ -119,7 +128,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
         { style: 'cancel', text: 'Cancelar' },
         {
           onPress: () => {
-            void deletePost(post.id).catch((error) => {
+            void onDeletePost(post.id).catch((error) => {
               Alert.alert('No se pudo eliminar', error instanceof Error ? error.message : 'Intenta nuevamente.');
             });
           },
@@ -184,7 +193,7 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
           <AppText style={styles.authorName} variant="bodyStrong">{post.author}</AppText>
           <View style={styles.metadata}>
             <Feather color={themeColors.textMuted} name="map-pin" size={10} />
-            <AppText numberOfLines={1} style={[styles.locationLabel, { color: themeColors.textMuted }]} variant="caption">{post.location ?? 'Providencia'}</AppText>
+            <AppText numberOfLines={1} style={[styles.locationLabel, { color: themeColors.textMuted }]} variant="caption">{post.location ?? 'Tu comunidad'}</AppText>
             <View style={[styles.metadataDot, { backgroundColor: themeColors.textMuted }]} />
             <AppText style={[styles.timeLabel, { color: themeColors.textMuted }]} variant="caption">{post.timeLabel}</AppText>
           </View>
@@ -205,11 +214,11 @@ export const CommunityPostCard = memo(function CommunityPostCard({ isNew = false
       {mediaImages.length ? (
         <View style={[styles.media]}>
           <PostMediaGrid images={mediaImages} recyclingKey={post.id} />
-          <View style={[styles.mediaLocation, { backgroundColor: isDark ? 'rgba(20,27,23,0.88)' : 'rgba(255,255,255,0.88)' }]}><Feather color={themeColors.text} name="map-pin" size={12} /><AppText numberOfLines={1} style={[styles.mediaLocationText, { color: themeColors.text }]} variant="caption">{post.location ?? 'Providencia'}</AppText></View>
+          <View style={[styles.mediaLocation, { backgroundColor: isDark ? 'rgba(20,27,23,0.88)' : 'rgba(255,255,255,0.88)' }]}><Feather color={themeColors.text} name="map-pin" size={12} /><AppText numberOfLines={1} style={[styles.mediaLocationText, { color: themeColors.text }]} variant="caption">{post.location ?? 'Tu comunidad'}</AppText></View>
         </View>
       ) : null}
 
-      {post.poll ? <PostPoll onSelect={(optionId) => { void selectPollOption(post.id, optionId).catch((error) => { Alert.alert('No se pudo votar', error instanceof Error ? error.message : 'Intenta nuevamente.'); }); }} poll={post.poll} selectedOptionId={selectedPollOption} /> : null}
+      {post.poll ? <PostPoll onSelect={(optionId) => { void onSelectPollOption(post.id, optionId).catch((error) => { Alert.alert('No se pudo votar', error instanceof Error ? error.message : 'Intenta nuevamente.'); }); }} poll={post.poll} selectedOptionId={selectedPollOption} /> : null}
 
       {post.audioUri ? (
         <Pressable accessibilityRole="button" onPress={() => void toggleAudio()} style={({ pressed }) => [styles.audioPlayer, pressed && styles.pressed]}>

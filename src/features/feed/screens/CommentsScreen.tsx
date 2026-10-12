@@ -2,7 +2,7 @@ import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,7 +12,8 @@ import { useAuth } from '@/features/auth/application/AuthProvider';
 import { useFeed } from '@/features/feed/application/FeedProvider';
 import { usePostComments } from '@/features/feed/application/usePostComments';
 import type { FeedIdentity } from '@/features/feed/data/feedIdentityRepository';
-import type { CommunityComment } from '@/features/feed/model/community';
+import { getFeedPost } from '@/features/feed/data/feedRepository';
+import type { CommunityComment, CommunityPost } from '@/features/feed/model/community';
 import { useAppAppearance } from '@/theme/AppearanceProvider';
 import { makeThemedStyles } from '@/theme/themedStyles';
 import { radii, spacing, typography } from '@/theme/tokens';
@@ -94,16 +95,25 @@ export function CommentsScreen() {
   const { colors } = useAppAppearance();
   const styles = useStyles();
   const { profile } = useAuth();
-  const { invalidatePost, posts } = useFeed();
+  const { allPosts: posts, invalidatePost } = useFeed();
   const listRef = useRef<FlashListRef<ThreadedComment>>(null);
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<CommunityComment | null>(null);
-  const post = posts.find(({ id }) => id === postId);
+  const [resolvedPost, setResolvedPost] = useState<CommunityPost | null>(null);
+  const [isPostLoading, setIsPostLoading] = useState(true);
+  const cachedPost = posts.find(({ id }) => id === postId);
+  const post = cachedPost ?? resolvedPost;
   const identity = useMemo<FeedIdentity>(() => ({
     displayName: profile?.displayName ?? 'Miembro de Tribus',
     initials: profile?.initials || 'V',
-    location: profile?.location ?? 'Providencia',
+    location: profile?.location ?? 'Tu comunidad',
   }), [profile]);
+  const refreshPost = useCallback((invalidatedPostId: string) => {
+    invalidatePost(invalidatedPostId);
+    void getFeedPost(invalidatedPostId)
+      .then(setResolvedPost)
+      .catch(() => undefined);
+  }, [invalidatePost]);
   const {
     addComment,
     comments,
@@ -114,9 +124,36 @@ export function CommentsScreen() {
     isSubmitting,
     loadMore,
     toggleCommentLike,
-  } = usePostComments({ identity, onPostInvalidated: invalidatePost, postId });
+  } = usePostComments({ identity, onPostInvalidated: refreshPost, postId });
   const threadedComments = useMemo(() => buildThread(comments), [comments]);
   const initials = profile?.initials || 'V';
+
+  useEffect(() => {
+    let active = true;
+    if (cachedPost) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setResolvedPost(cachedPost);
+      setIsPostLoading(false);
+      return () => { active = false; };
+    }
+
+    setResolvedPost(null);
+    setIsPostLoading(true);
+    if (!postId) {
+      setIsPostLoading(false);
+      return () => { active = false; };
+    }
+
+    void getFeedPost(postId)
+      .then((nextPost) => {
+        if (active) setResolvedPost(nextPost);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setIsPostLoading(false);
+      });
+    return () => { active = false; };
+  }, [cachedPost, postId]);
 
   const submitComment = useCallback(async () => {
     const content = draft.trim();
@@ -134,20 +171,17 @@ export function CommentsScreen() {
 
   const openCommentMenu = useCallback((comment: CommunityComment) => {
     const copy = () => void Clipboard.setStringAsync(comment.content);
-    const report = () => Alert.alert('Comentario reportado', 'Revisaremos este comentario.');
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { cancelButtonIndex: 2, destructiveButtonIndex: 1, options: ['Copiar', 'Reportar', 'Cancelar'] },
+        { cancelButtonIndex: 1, options: ['Copiar', 'Cancelar'] },
         (buttonIndex) => {
           if (buttonIndex === 0) copy();
-          if (buttonIndex === 1) report();
         },
       );
       return;
     }
     Alert.alert('Comentario', undefined, [
       { text: 'Copiar', onPress: copy },
-      { text: 'Reportar', onPress: report, style: 'destructive' },
       { text: 'Cancelar', style: 'cancel' },
     ]);
   }, []);
@@ -207,6 +241,8 @@ export function CommentsScreen() {
             renderItem={renderComment}
             showsVerticalScrollIndicator={false}
           />
+        ) : isPostLoading ? (
+          <View style={styles.empty}><ActivityIndicator color={colors.primaryDark} /></View>
         ) : (
           <View style={styles.empty}><AppIcon color={colors.textMuted} name="alert-circle" size={28} /><AppText variant="bodyStrong">Publicación no disponible</AppText></View>
         )}

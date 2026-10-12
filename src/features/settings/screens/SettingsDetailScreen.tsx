@@ -79,7 +79,10 @@ export function SettingsDetailScreen() {
   const setToggle = (key: string) => (value: boolean) => setToggles((current) => ({ ...current, [key]: value }));
   const setChoice = (key: string) => (value: string) => setChoices((current) => ({ ...current, [key]: value }));
   const setField = (key: string) => (value: string) => setFields((current) => ({ ...current, [key]: value }));
-  const confirm = (title: string, message = 'Los cambios quedaron guardados en esta demostración frontend.') => Alert.alert(title, message);
+  const confirm = (_title?: string, _message?: string) => Alert.alert(
+    'Función no disponible',
+    'Esta opción todavía no está conectada a un servicio de producción.',
+  );
   const saveProfile = async () => {
     if (!fields.name.trim()) {
       Alert.alert('Falta tu nombre', 'Escribe el nombre que quieres mostrar en tu perfil.');
@@ -191,7 +194,7 @@ export function SettingsDetailScreen() {
           <SettingsChoice label="Tema" onChange={setChoice('feedbackType')} options={['Sugerencia', 'Experiencia', 'Otro']} value={choices.feedbackType ?? 'Sugerencia'} />
           <SettingsDivider /><SettingsField label="Mensaje" multiline onChange={setField('feedback')} placeholder="¿Qué podemos mejorar?" value={fields.feedback} />
         </SettingsCard>
-        <SettingsButton label="Enviar comentario" onPress={() => { confirm('Comentario enviado', 'Gracias por ayudarnos a mejorar Tribus.'); setFields((current) => ({ ...current, feedback: '' })); }} />
+        <SettingsButton label="Enviar comentario" onPress={() => confirm()} />
       </> : null}
 
       {section === 'politica-privacidad' ? <SettingsCard label="POLÍTICA DE PRIVACIDAD">
@@ -281,7 +284,7 @@ export function SettingsDetailScreen() {
       {section === 'soporte' ? <>
         <SettingsCard label="AYUDA"><SettingsAction icon="help-circle" label="Preguntas frecuentes" onPress={() => confirm('Preguntas frecuentes', 'Cuenta · Mapa · Publicaciones · Privacidad · Seguridad')} /><SettingsDivider /><SettingsAction icon="mail" label="Contactar soporte" onPress={() => confirm('Soporte', 'El formulario está listo para conectarse al servicio de soporte.')} value="24–48 h" /><SettingsDivider /><SettingsAction icon="alert-circle" label="Reportar un problema" onPress={() => confirm('Reportar problema', 'Adjunta una descripción y, opcionalmente, una captura de pantalla.')} /></SettingsCard>
         <SettingsCard label="ENVÍANOS TUS COMENTARIOS"><SettingsField label="Mensaje" multiline onChange={setField('feedback')} placeholder="¿Qué podemos mejorar?" value={fields.feedback} /></SettingsCard>
-        <SettingsButton label="Enviar comentario" onPress={() => { confirm('Comentario enviado', 'Gracias por ayudarnos a mejorar Tribus.'); setFields((current) => ({ ...current, feedback: '' })); }} />
+        <SettingsButton label="Enviar comentario" onPress={() => confirm()} />
         <SettingsCard label="LEGAL"><SettingsAction icon="file-text" label="Política de privacidad" onPress={() => confirm('Política de privacidad', 'Contenido legal frontend preparado para conectar al documento definitivo.')} /><SettingsDivider /><SettingsAction icon="book-open" label="Normas de la comunidad" onPress={() => confirm('Normas de la comunidad', 'Respeto, seguridad, información veraz y cuidado de la comunidad.')} /><SettingsDivider /><SettingsAction icon="info" label="Acerca de Tribus" onPress={() => confirm('Tribus', 'Versión 1.0 · Hecho para comunidades locales.')} /></SettingsCard>
       </> : null}
     </SettingsDetailLayout>

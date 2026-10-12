@@ -15,8 +15,6 @@ import { radii, spacing } from '@/theme/tokens';
 import type { CommunityPost, CommunityPostDraft } from '@/features/feed/model/community';
 
 import { FeedHeader } from '../components/FeedHeader';
-import type { FeedFilter } from '../model/feed';
-
 const PostSeparator = () => { const styles = useStyles(); return <View style={styles.separator} />; };
 
 export function FeedScreen() {
@@ -24,15 +22,24 @@ export function FeedScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const { addPost, error, isLoading, isLoadingMore, loadMore, posts, refresh } = useFeed();
+  const {
+    activeFilter,
+    addPost,
+    deletePost,
+    error,
+    isLoading,
+    isLoadingMore,
+    loadMore,
+    posts,
+    refresh,
+    selectPollOption,
+    setActiveFilter,
+    toggleBookmark,
+    toggleLike,
+  } = useFeed();
   const listRef = useRef<FlashListRef<CommunityPost>>(null);
   const newPostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FeedFilter>('todo');
   const [newPostId, setNewPostId] = useState<string | null>(null);
-  const visiblePosts = useMemo(
-    () => posts.filter((post) => activeFilter === 'todo' || post.category === activeFilter),
-    [activeFilter, posts],
-  );
 
   const openProfile = useCallback(() => router.push('/(tabs)/perfil'), [router]);
   const openNotifications = useCallback(() => router.push('/notificaciones'), [router]);
@@ -44,12 +51,21 @@ export function FeedScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: true, offset: 0 }));
     if (newPostTimerRef.current) clearTimeout(newPostTimerRef.current);
     newPostTimerRef.current = setTimeout(() => setNewPostId(null), 900);
-  }, [addPost]);
+  }, [addPost, setActiveFilter]);
   const renderPost = useCallback(({ item }: ListRenderItemInfo<CommunityPost>) => (
-    <View style={styles.post}><CommunityPostCard isNew={item.id === newPostId} post={item} /></View>
-  ), [newPostId, styles.post]);
+    <View style={styles.post}>
+      <CommunityPostCard
+        isNew={item.id === newPostId}
+        onDeletePost={deletePost}
+        onSelectPollOption={selectPollOption}
+        onToggleBookmark={toggleBookmark}
+        onToggleLike={toggleLike}
+        post={item}
+      />
+    </View>
+  ), [deletePost, newPostId, selectPollOption, styles.post, toggleBookmark, toggleLike]);
   const getPostType = useCallback((post: CommunityPost) => {
-    if (post.images?.length || post.imageVariants || post.imageUri) return 'image';
+    if (post.images?.length || post.imageUri) return 'image';
     if (post.poll) return 'poll';
     if (post.audioUri) return 'audio';
     return 'text';
@@ -71,7 +87,7 @@ export function FeedScreen() {
       />
       {error && posts.length > 0 ? <View style={styles.errorBanner}><AppText style={styles.errorText} variant="caption">No pudimos actualizar el feed · desliza para reintentar</AppText></View> : null}
     </>
-  ), [activeFilter, createPost, error, openNotifications, openProfile, openWallet, posts.length, styles.errorBanner, styles.errorText]);
+  ), [activeFilter, createPost, error, openNotifications, openProfile, openWallet, posts.length, setActiveFilter, styles.errorBanner, styles.errorText]);
 
   const empty = useMemo(() => {
     if (isLoading) {
@@ -117,7 +133,7 @@ export function FeedScreen() {
       <FlashList
         ref={listRef}
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 12) + 92 }]}
-        data={visiblePosts}
+        data={posts}
         drawDistance={900}
         getItemType={getPostType}
         ItemSeparatorComponent={PostSeparator}

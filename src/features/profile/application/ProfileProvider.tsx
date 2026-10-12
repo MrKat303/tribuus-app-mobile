@@ -21,7 +21,7 @@ export function ProfileProvider({ children }: PropsWithChildren) {
   const { profile: authProfile, refreshProfile, session } = useAuth();
   const profile = useMemo<Profile>(() => ({
     bio: authProfile?.bio ?? '',
-    location: authProfile?.location ?? 'Providencia',
+    location: authProfile?.location ?? '',
     name: authProfile?.displayName ?? 'Miembro de Tribus',
     username: authProfile?.username ?? '',
   }), [authProfile]);

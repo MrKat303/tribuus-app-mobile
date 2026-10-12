@@ -42,6 +42,16 @@ export function useFeedRealtime({
   useEffect(() => subscribeToFeedChanges(visiblePostIds, (change) => {
     if (isPublishingPost.current) return;
     if (change.scope === 'post') {
+      if (change.eventType === 'INSERT') {
+        void syncFirstPage().catch(() => undefined);
+        return;
+      }
+      if (!visiblePostIds.includes(change.postId)) {
+        // Publishing transitions a private draft with UPDATE. Refresh the first
+        // page so another member sees it, but never prepend the unknown row.
+        if (change.eventType === 'UPDATE') void syncFirstPage().catch(() => undefined);
+        return;
+      }
       invalidatePost(change.postId);
       return;
     }

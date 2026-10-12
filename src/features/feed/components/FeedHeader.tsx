@@ -34,11 +34,10 @@ export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilte
         <BrandMark />
         <View style={styles.topActions}>
           <Pressable accessibilityLabel="Abrir Community Wallet" accessibilityRole="button" onPress={onOpenWallet} style={[styles.notificationButton, { backgroundColor: themeColors.primarySoft }]}>
-            <AppIcon color={themeColors.primaryDark} name="briefcase" size={17} />
+            <AppIcon color={themeColors.primaryDark} name="award" size={17} />
           </Pressable>
           <Pressable accessibilityLabel="Notificaciones" accessibilityRole="button" onPress={onOpenNotifications} style={[styles.notificationButton, { backgroundColor: themeColors.primarySoft }]}>
             <AppIcon color={themeColors.primaryDark} name="bell" size={17} />
-            <View style={[styles.notificationDot, { backgroundColor: themeColors.warning, borderColor: themeColors.surface }]} />
           </Pressable>
           <Pressable accessibilityLabel="Abrir mi perfil" accessibilityRole="button" onPress={onOpenProfile} style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}>
             <AppText style={styles.profileInitials} variant="caption">{initials}</AppText>
@@ -62,11 +61,10 @@ export const FeedHeader = memo(function FeedHeader({ activeFilter, onChangeFilte
 
       <View style={styles.feedHeading}>
         <AppText style={styles.feedTitle} variant="heading">Publicaciones cerca de ti</AppText>
-        <Pressable accessibilityLabel="Cambiar comuna" hitSlop={8} style={styles.feedLocation}>
+        <View style={styles.feedLocation}>
           <AppIcon color={themeColors.primaryDark} name="navigation" size={14} />
           <AppText style={[styles.feedLocationText, { color: themeColors.textMuted }]} variant="caption">{profile?.location ?? 'Tu comunidad'}</AppText>
-          <AppIcon color={themeColors.textMuted} name="chevron-down" size={13} />
-        </Pressable>
+        </View>
       </View>
     </>
   );
@@ -76,7 +74,6 @@ const useStyles = makeThemedStyles((colors) => ({
   topBar: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   topActions: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   notificationButton: { alignItems: 'center', backgroundColor: colors.surfaceMuted, borderRadius: radii.pill, height: 36, justifyContent: 'center', position: 'relative', width: 36 },
-  notificationDot: { backgroundColor: colors.primary, borderColor: colors.surface, borderRadius: radii.pill, borderWidth: 1, height: 7, position: 'absolute', right: 5, top: 4, width: 7 },
   profileButton: { alignItems: 'center', backgroundColor: colors.text, borderRadius: radii.pill, height: 36, justifyContent: 'center', width: 36 },
   profileInitials: { color: colors.surface, fontSize: 10 },
   filters: { marginHorizontal: -20, marginTop: spacing.sm },

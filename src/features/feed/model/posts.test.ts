@@ -24,17 +24,22 @@ const post: CommunityPost = {
 
 describe('posts model', () => {
   test('creates local posts with a single canonical owner shape', () => {
-    expect(createCommunityPost({ content: 'Nueva publicación' }, 'local-1')).toMatchObject({
-      author: 'Jaime M.',
+    expect(createCommunityPost(
+      { content: 'Nueva publicación' },
+      'local-1',
+      { author: 'Persona autenticada', authorId: 'user-1', initials: 'PA', location: 'Comunidad local' },
+    )).toMatchObject({
+      author: 'Persona autenticada',
+      authorId: 'user-1',
       category: 'comunidad',
       commentCount: 0,
       content: 'Nueva publicación',
       id: 'local-1',
-      initials: 'JM',
+      initials: 'PA',
       isBookmarked: false,
       isLiked: false,
       likes: 0,
-      location: 'Providencia',
+      location: 'Comunidad local',
     });
   });
 

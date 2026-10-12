@@ -9,8 +9,8 @@ type FeedRealtimePayload = {
 };
 
 export type FeedRealtimeChange =
-  | { scope: 'feed' }
-  | { postId: string; scope: 'post' };
+  | { eventType: FeedRealtimePayload['eventType']; scope: 'feed' }
+  | { eventType: FeedRealtimePayload['eventType']; postId: string; scope: 'post' };
 
 const MAX_REALTIME_POST_FILTER_SIZE = 100;
 let channelSequence = 0;
@@ -25,7 +25,9 @@ export function postIdFromRealtimePayload(payload: Pick<FeedRealtimePayload, 'ne
 
 function emitPostChange(payload: FeedRealtimePayload, onChange: (change: FeedRealtimeChange) => void) {
   const postId = postIdFromRealtimePayload(payload);
-  onChange(postId ? { postId, scope: 'post' } : { scope: 'feed' });
+  onChange(postId
+    ? { eventType: payload.eventType, postId, scope: 'post' }
+    : { eventType: payload.eventType, scope: 'feed' });
 }
 
 export function subscribeToCommunityFeedChanges(

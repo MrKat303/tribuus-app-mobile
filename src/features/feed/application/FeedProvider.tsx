@@ -1,4 +1,4 @@
-import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
+import { createContext, type PropsWithChildren, useContext, useMemo, useState } from 'react';
 
 import { useAuth } from '@/features/auth/application/AuthProvider';
 import { useFeedMutations } from '@/features/feed/application/useFeedMutations';
@@ -6,9 +6,12 @@ import { useFeedQuery } from '@/features/feed/application/useFeedQuery';
 import { useFeedRealtime } from '@/features/feed/application/useFeedRealtime';
 import type { FeedIdentity } from '@/features/feed/data/feedIdentityRepository';
 import type { CommunityPost, CommunityPostDraft } from '@/features/feed/model/community';
+import type { FeedFilter } from '@/features/feed/model/feed';
 
 type FeedContextValue = {
+  activeFilter: FeedFilter;
   addPost: (draft: CommunityPostDraft) => Promise<string>;
+  allPosts: CommunityPost[];
   deletePost: (postId: string) => Promise<void>;
   error: string | null;
   hasMore: boolean;
@@ -19,6 +22,7 @@ type FeedContextValue = {
   posts: CommunityPost[];
   refresh: () => Promise<void>;
   selectPollOption: (postId: string, optionId: string) => Promise<void>;
+  setActiveFilter: (filter: FeedFilter) => void;
   toggleBookmark: (postId: string) => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
 };
@@ -27,18 +31,21 @@ const FeedContext = createContext<FeedContextValue | null>(null);
 
 export function FeedProvider({ children }: PropsWithChildren) {
   const { profile } = useAuth();
+  const [activeFilter, setActiveFilter] = useState<FeedFilter>('todo');
   const identity = useMemo<FeedIdentity>(() => ({
     displayName: profile?.displayName ?? 'Miembro de Tribus',
     initials: profile?.initials || 'V',
-    location: profile?.location ?? 'Providencia',
+    location: profile?.location ?? 'Tu comunidad',
   }), [profile]);
 
   const {
+    allPosts,
     cursor,
     error,
     isLoading,
     isLoadingMore,
     loadMore,
+    mutationPosts,
     posts,
     refresh,
     reloadFirstPage,
@@ -46,7 +53,7 @@ export function FeedProvider({ children }: PropsWithChildren) {
     setPosts,
     syncFirstPage,
     syncPost,
-  } = useFeedQuery(identity);
+  } = useFeedQuery(identity, activeFilter);
   const {
     addPost,
     deletePost,
@@ -56,7 +63,7 @@ export function FeedProvider({ children }: PropsWithChildren) {
     toggleLike,
   } = useFeedMutations({
     identity,
-    posts,
+    posts: mutationPosts,
     reloadFirstPage,
     setError,
     setPosts,
@@ -69,7 +76,9 @@ export function FeedProvider({ children }: PropsWithChildren) {
   });
 
   const value = useMemo<FeedContextValue>(() => ({
+    activeFilter,
     addPost,
+    allPosts,
     deletePost,
     error,
     hasMore: cursor !== null,
@@ -80,10 +89,13 @@ export function FeedProvider({ children }: PropsWithChildren) {
     posts,
     refresh,
     selectPollOption,
+    setActiveFilter,
     toggleBookmark,
     toggleLike,
   }), [
+    activeFilter,
     addPost,
+    allPosts,
     cursor,
     deletePost,
     error,

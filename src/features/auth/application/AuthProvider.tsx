@@ -182,17 +182,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const completeOnboarding = useCallback(async (payload: OnboardingPayload) => {
     const result = await supabase.rpc('complete_onboarding', {
-      p_accuracy_m: payload.accuracyM ?? null,
+      p_accuracy_m: payload.accuracyM ?? undefined,
       p_bio: payload.bio,
       p_community_id: payload.communityId,
-      p_country_code: payload.countryCode ?? null,
+      p_country_code: payload.countryCode ?? undefined,
       p_display_name: payload.displayName,
       p_interests: payload.interests,
-      p_latitude: payload.latitude ?? null,
+      p_latitude: payload.latitude ?? undefined,
       p_location_label: payload.locationLabel,
       p_location_source: payload.locationSource,
-      p_longitude: payload.longitude ?? null,
-      p_region: payload.region ?? null,
+      p_longitude: payload.longitude ?? undefined,
+      p_region: payload.region ?? undefined,
       p_username: payload.username,
     });
     if (result.error) {

@@ -1,12 +1,12 @@
 # Tribuus Mobile
 
-Aplicación móvil de Tribuus para Android e iOS, construida con React Native, Expo SDK 57, Expo Router y TypeScript. Este repositorio contiene el cliente móvil; el contenido y varios flujos todavía funcionan con datos locales de demostración.
+Aplicación móvil de Tribuus para Android e iOS, construida con React Native, Expo SDK 57, Expo Router y TypeScript. Este repositorio contiene el cliente móvil y sus migraciones versionadas de Supabase.
 
 ## Estado del proyecto
 
-La app incluye navegación y pantallas para inicio, mapa, publicaciones, comunidad, chat, noticias, tienda, perfil, notificaciones, configuración y una Community Wallet integrada con Stellar. Lugares y varias experiencias de exploración todavía usan datos locales de demostración.
+La app incluye navegación y pantallas para inicio, mapa, publicaciones, comunidad, chat, noticias, tienda, perfil, notificaciones, configuración y un Pasaporte de Impacto integrado con Stellar.
 
-Autenticación, perfiles, chat y feed se integran con Supabase; el feed también usa Supabase Storage y Realtime. Lugares continúan en memoria durante la ejecución y Community Wallet persiste parte de su estado con AsyncStorage. Las migraciones versionadas bajo `supabase/migrations` definen el schema y las publicaciones Realtime requeridas por el cliente.
+Autenticación, perfiles, chat, feed, lugares, recomendaciones e impacto comunitario se integran con Supabase; el feed también usa Supabase Storage privado mediante URLs firmadas y Realtime. El Pasaporte de Impacto permite enviar acciones, revisarlas con roles comunitarios y emitir credenciales no transferibles mediante un contrato Soroban. Supabase conserva la evidencia y el índice consultable; Stellar recibe solo compromisos criptográficos y metadatos mínimos. Las migraciones versionadas bajo `supabase/migrations` definen el schema, RLS y las publicaciones Realtime requeridas por el cliente.
 
 El mapa usa `@rnmapbox/maps`, búsqueda de lugares con Mapbox y ubicación en primer plano. Para ejecutar esos flujos se necesita un token de Mapbox válido. La app requiere un development build nativo; Expo Go no incluye el módulo nativo de Mapbox.
 
@@ -17,7 +17,7 @@ El mapa usa `@rnmapbox/maps`, búsqueda de lugares con Mapbox y ubicación en pr
 - React Native Reanimated, Gesture Handler, Safe Area Context y React Native Screens.
 - Mapbox mediante `@rnmapbox/maps`, más búsqueda de lugares con la API de geocoding.
 - Supabase JS para el cliente y la gestión de sesión.
-- Stellar Horizon para saldo e historial público, y SEP-7 para delegar donaciones a una wallet externa.
+- Soroban sobre Stellar para credenciales comunitarias no transferibles y hashes de transparencia; no hay tokens, pagos ni conversión de CLP.
 - AsyncStorage para persistir la sesión de Supabase en iOS y Android.
 - Jest con `jest-expo`; ESLint y TypeScript para controles estáticos.
 - Node.js `22.13.0` (definido en `.nvmrc`) y npm `11.6.2`.
@@ -68,9 +68,6 @@ Expo SDK 57 requiere React Native 0.86 y Node.js 22.13.x como mínimo. Consulta 
    | `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` | Token público de Mapbox para mostrar el mapa y buscar lugares. Reemplaza el valor de ejemplo. |
    | `EXPO_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase. El cliente Supabase lo requiere al iniciar la app. |
    | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key del proyecto Supabase. El cliente Supabase la requiere al iniciar la app. |
-   | `EXPO_PUBLIC_STELLAR_NETWORK` | Red Stellar: usa `testnet` durante desarrollo y `public` en producción. |
-   | `EXPO_PUBLIC_STELLAR_HORIZON_URL` | Endpoint Horizon correspondiente a la red seleccionada. |
-   | `EXPO_PUBLIC_STELLAR_COMMUNITY_ACCOUNT` | Dirección pública `G...` del fondo comunitario que recibe donaciones. |
 
    Las variables con prefijo `EXPO_PUBLIC_` se incorporan al bundle del cliente. Usa solo claves diseñadas para exposición en una app móvil. No agregues claves `service_role`, secretos privados ni credenciales de servidor. Restringe el token de Mapbox desde su panel.
 
@@ -91,6 +88,44 @@ Expo SDK 57 requiere React Native 0.86 y Node.js 22.13.x como mínimo. Consulta 
 
 Los archivos `.env`, `.env.local` y otros entornos locales están excluidos por Git. Nunca publiques valores reales en `.env.example`.
 
+## Flujo de Supabase
+
+`supabase/migrations` es la fuente de verdad del esquema remoto. No hagas cambios de schema directamente en Table Editor o SQL Editor: crea una migración con `supabase migration new <nombre>`, pruébala y aplícala mediante `supabase db push`.
+
+Con el proyecto enlazado, valida el historial, los pendientes, el lint SQL y los Advisors con:
+
+```powershell
+npm run supabase:verify
+```
+
+Después de cualquier cambio de schema o RPC, regenera y versiona los tipos consumidos por el cliente:
+
+```powershell
+npm run supabase:types
+```
+
+El archivo resultante vive en `src/shared/infrastructure/supabase/database.types.ts`; no debe editarse manualmente.
+
+### Credenciales de impacto con Stellar
+
+El flujo no es financiero:
+
+1. una persona registra una acción en la app;
+2. Supabase aplica RLS y la mantiene pendiente;
+3. un moderador o administrador de esa comunidad confirma el hecho;
+4. la Edge Function crea una credencial con la puntuación versionada y llama al contrato Soroban;
+5. la app suma únicamente credenciales activas confirmadas en Stellar.
+
+La cuenta emisora paga las tarifas de red en segundo plano. Las personas usuarias no instalan una wallet, no custodian claves, no reciben XLM y no convierten CLP.
+
+Para desarrollo local, copia `supabase/functions/.env.example` a un archivo local ignorado y configura `STELLAR_NETWORK`, `STELLAR_RPC_URL`, `STELLAR_IMPACT_CONTRACT_ID` y `STELLAR_ISSUER_SECRET`. En Supabase alojado, guarda estos valores con `supabase secrets set`; jamás uses el prefijo `EXPO_PUBLIC_` para la clave emisora.
+
+El contrato está en `stellar/contracts/community-impact`. Consulta [stellar/README.md](stellar/README.md) para compilar, probar, desplegar e inicializarlo. Después de aplicar la migración, despliega la función con:
+
+```powershell
+supabase functions deploy anchor-impact-credential
+```
+
 ## Comandos
 
 | Comando | Descripción |
@@ -104,6 +139,10 @@ Los archivos `.env`, `.env.local` y otros entornos locales están excluidos por 
 | `npm run test` | Ejecuta Jest una vez. |
 | `npm run test:watch` | Ejecuta Jest en modo watch. |
 | `npm run check` | Ejecuta lint, typecheck y tests en secuencia. |
+| `npm run supabase:types` | Regenera tipos TypeScript desde el proyecto Supabase enlazado. |
+| `npm run supabase:verify` | Comprueba migraciones, lint SQL y Advisors del proyecto enlazado. |
+| `npm run stellar:test` | Ejecuta las pruebas del contrato Soroban. |
+| `npm run stellar:build` | Compila el contrato Soroban a WASM. |
 
 GitHub Actions ejecuta lint, typecheck y tests en cada pull request hacia `main` y en cada push a `main`. Dependabot revisa semanalmente las dependencias npm y mensualmente las GitHub Actions.
 

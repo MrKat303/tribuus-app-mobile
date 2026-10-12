@@ -9,12 +9,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
-import { createPostImageVariants } from '@/features/feed/media/createPostImageVariants';
+import { createPostFeedImage } from '@/features/feed/media/createPostFeedImage';
 import type { CommunityPostCategory, CommunityPostDraft, CommunityPostImage } from '@/features/feed/model/community';
+import { mapWithConcurrency } from '@/shared/utils/mapWithConcurrency';
 
 export const POST_CONTENT_LIMIT = 350;
 export const MAX_POLL_OPTIONS = 4;
 export const MAX_POST_IMAGES = 12;
+const POST_IMAGE_PROCESSING_CONCURRENCY = 3;
 
 const initialPollOptions = () => ['', ''];
 const recordingOptions = { ...RecordingPresets.HIGH_QUALITY, directory: 'document' as const };
@@ -43,7 +45,6 @@ export function usePostComposer() {
   const isRecording = recorderState.isRecording;
   const recordingMillis = recorderState.durationMillis;
   const imageUri = images[0]?.uri ?? null;
-  const imageVariants = images[0]?.variants ?? null;
   const canPublish = !isRecording
     && !isProcessingImage
     && (!pollEnabled || hasPoll)
@@ -95,42 +96,53 @@ export function usePostComposer() {
   }, [reset, stopActiveRecorder]);
 
   const pickImage = useCallback(async () => {
+    let requestId: number | null = null;
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsMultipleSelection: true,
         mediaTypes: ['images'],
-        quality: 0.85,
+        quality: 1,
         selectionLimit: MAX_POST_IMAGES,
       });
       if (result.canceled) return;
 
-      const requestId = ++imageRequestId.current;
-      const selectedImages = result.assets.slice(0, MAX_POST_IMAGES).map((asset, index) => ({
+      requestId = ++imageRequestId.current;
+      const selectedAssets = result.assets.slice(0, MAX_POST_IMAGES);
+      const selectedImages = selectedAssets.map((asset, index) => ({
         id: asset.assetId ?? `image-${requestId}-${index}`,
         uri: asset.uri,
       }));
       setImages(selectedImages);
       setIsProcessingImage(true);
       let optimizationFailed = false;
-      for (const [index, asset] of result.assets.slice(0, MAX_POST_IMAGES).entries()) {
-        try {
-          const variants = await createPostImageVariants({
-            height: asset.height,
-            uri: asset.uri,
-            width: asset.width,
-          });
-          if (imageRequestId.current !== requestId) return;
-          setImages((current) => current.map((image) => image.id === selectedImages[index].id
-            ? { ...image, uri: variants.feed.uri, variants }
-            : image));
-        } catch {
-          optimizationFailed = true;
-        }
-      }
+
+      const optimizedImages = await mapWithConcurrency(
+        selectedAssets,
+        POST_IMAGE_PROCESSING_CONCURRENCY,
+        async (asset) => {
+          if (imageRequestId.current !== requestId) return null;
+          try {
+            return await createPostFeedImage({
+              height: asset.height,
+              uri: asset.uri,
+              width: asset.width,
+            });
+          } catch {
+            optimizationFailed = true;
+            return null;
+          }
+        },
+      );
+
       if (imageRequestId.current !== requestId) return;
+      setImages(selectedImages.map((image, index) => {
+        const optimizedImage = optimizedImages[index];
+        return optimizedImage ? { ...image, uri: optimizedImage.uri } : image;
+      }));
       setIsProcessingImage(false);
       if (optimizationFailed) Alert.alert('Imagen sin optimizar', 'Algunas fotos se adjuntaron sin su versión optimizada.');
     } catch {
+      if (requestId === imageRequestId.current) setIsProcessingImage(false);
       Alert.alert('Galería no disponible', 'Recompila la app para incluir el selector de imágenes en el development build.');
     }
   }, []);
@@ -207,7 +219,6 @@ export function usePostComposer() {
         ? [`📅 ${eventDate.trim()}`, content.trim()].filter(Boolean).join('\n')
         : content.trim(),
       images: images.length ? images : undefined,
-      imageVariants: imageVariants ?? undefined,
       imageUri: imageUri ?? undefined,
       location: eventEnabled ? eventLocation.trim() : undefined,
       poll: hasPoll ? {
@@ -218,7 +229,7 @@ export function usePostComposer() {
     });
     reset();
     return true;
-  }, [audioName, audioUri, canPublish, category, content, eventDate, eventEnabled, eventLocation, eventTitle, hasEvent, hasPoll, imageUri, imageVariants, images, pollEnabled, pollQuestion, reset, validPollOptions]);
+  }, [audioName, audioUri, canPublish, category, content, eventDate, eventEnabled, eventLocation, eventTitle, hasEvent, hasPoll, imageUri, images, pollEnabled, pollQuestion, reset, validPollOptions]);
 
   return {
     addPollOption, audioName, audioUri, canPublish, category, content, discard,

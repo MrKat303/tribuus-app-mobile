@@ -76,11 +76,11 @@ El provider se monta en el límite más pequeño compatible con su estado:
 - `AppearanceProvider` y `AuthProvider`: raíz, porque afectan a toda la aplicación.
 - `ProfileProvider` y `FeedProvider`: árbol autenticado, porque varias rutas los consumen.
 - `PlacesProvider`: ruta de mapa, su único consumidor actual.
-- `CommunityWalletProvider`: layout anidado `community-wallet`, para preservar estado entre sus tres rutas sin cargarlo fuera del flujo.
+- `CommunityWalletProvider`: layout anidado `community-wallet`; carga reglas, acciones, credenciales y cola de revisión solo mientras el usuario está dentro del Pasaporte de Impacto.
 
-`FeedProvider` es deliberadamente un composition root del módulo, no el dueño de cada operación. Delega en:
+`FeedProvider` es deliberadamente un composition root del módulo, no el dueño de cada operación. Conserva el filtro activo porque este forma parte de la consulta y delega en:
 
-- `useFeedQuery`: primera carga, refresh, paginación, sincronización individual y estado de error/loading;
+- `useFeedQuery`: páginas y cursores independientes por categoría, primera carga, refresh, sincronización individual y estado de error/loading;
 - `useFeedMutations`: optimistic updates, persistencia y rollback de posts e interacciones del feed;
 - `useFeedRealtime`: lifecycle de suscripciones e invalidación agrupada por post.
 - `usePostComments`: consulta paginada, mutaciones optimistas y realtime acotados a la pantalla de comentarios.
@@ -94,21 +94,32 @@ Antes de elevar estado, comprobar si realmente debe sobrevivir a la navegación.
 Los adaptadores externos pertenecen al módulo que los usa:
 
 - Mapbox search: `features/places/data`;
-- Stellar: `features/community-wallet/data`;
+- Supabase para impacto: `features/community-wallet/data`; el cliente nunca firma operaciones Stellar;
+- Stellar/Soroban: `supabase/functions/anchor-impact-credential` y `stellar/contracts/community-impact`, detrás de la validación autorizada;
 - feed: repositorios enfocados de posts, comentarios, interacciones, media, identidad y realtime en `features/feed/data`;
 - cliente Supabase común: `shared/infrastructure/supabase`.
 
 Un repository puede coordinar consultas, pero debe delegar transformaciones y storage cuando crezca. Los componentes consumen modelos de aplicación/dominio, no filas sin procesar.
 
-La lectura de una página del feed no hidrata comentarios. Cada post recibe el `comment_count` mantenido por triggers y solo consulta el estado de interacciones; dentro del repositorio de interacciones, likes, bookmarks y votos se consultan en paralelo. La pantalla de comentarios obtiene los 20 comentarios más recientes y pagina hacia atrás mediante cursor compuesto `(created_at, id)`, respaldado por un índice `(post_id, created_at desc, id desc)`. `feedRepository` compone los posts y `services/postsRepository.ts` permanece como fachada temporal de compatibilidad, sin implementación propia.
+La lectura de una página del feed no hidrata comentarios. Cada filtro consulta Supabase y conserva su propio cursor compuesto; no se filtra una página incompleta en memoria. Cada post recibe el `comment_count` mantenido por triggers y solo consulta el estado de interacciones; dentro del repositorio de interacciones, likes, bookmarks y votos se consultan en paralelo. La pantalla de comentarios obtiene los 20 comentarios más recientes y pagina hacia atrás mediante cursor compuesto `(created_at, id)`, respaldado por un índice `(post_id, created_at desc, id desc)`. Una actualización Realtime de la primera página fusiona los comentarios recientes sin descartar páginas antiguas ya cargadas. `feedRepository` compone los posts y `services/postsRepository.ts` permanece como fachada temporal de compatibilidad, sin implementación propia.
 
-Los tipos de base de datos de Supabase deben generarse desde el proyecto o esquema real y pasarse como genérico a `createClient<Database>`. No se deben mantener tipos manuales que aparenten representar el schema remoto.
+El acceso al feed se autoriza por membresía de comunidad en RLS; el filtro del cliente nunca actúa como frontera de seguridad. Los agregados (`like_count`, `comment_count` y `vote_count`) pertenecen a triggers y no son editables por clientes autenticados. La publicación parte de un borrador propio y se finaliza mediante `publish_feed_post`, que inserta metadata de imágenes, encuesta y estado publicado en una sola transacción. Si la respuesta del RPC se pierde, el cliente verifica el estado autoritativo antes de compensar; nunca borra una publicación confirmada por un timeout ambiguo. El bucket `post-media` es privado y el repositorio firma en lote únicamente los paths visibles para la sesión actual. Un adjunto faltante se omite sin invalidar los demás posts de la página.
+
+Los tipos de base de datos de Supabase se generan desde el proyecto real en `shared/infrastructure/supabase/database.types.ts` mediante `npm run supabase:types` y se pasan como genérico a `createClient<Database>`. El archivo generado se versiona, pero no se edita manualmente ni se reemplaza con tipos que solo aparenten representar el schema remoto.
+
+### Frontera de confianza del impacto comunitario
+
+Stellar no es la fuente de verdad del hecho social. Tribus o un emisor autorizado valida la evidencia fuera de la cadena. El contrato Soroban demuestra después que una credencial fue emitida por una dirección autorizada, con puntos y versión de regla concretos, y permite revocarla sin transferirla.
+
+La app autenticada solo puede insertar acciones propias en estado `pending`. RLS impide autoasignarse puntos o editar validaciones. `review_impact_action` vuelve atómica la decisión del moderador y la creación de la credencial pendiente; la Edge Function mantiene la clave emisora fuera del bundle, ancla la credencial y guarda el hash de transacción. Solo las credenciales con estado `active` cuentan en el total mostrado.
+
+La cadena almacena compromisos SHA-256, no UUID de usuario, descripciones, nombres ni evidencia. Supabase mantiene los datos privados y funciona como índice porque los eventos RPC no son una base histórica permanente.
 
 ### Realtime del feed
 
 Realtime se usa como señal de invalidación, no como una segunda fuente de verdad:
 
-- cambios en `posts` invalidan únicamente el post afectado;
+- cambios en posts visibles invalidan únicamente el post afectado; un `INSERT` o un `UPDATE` de un ID aún no visible refresca la primera página sin anteponer la fila ni alterar el orden del servidor;
 - `post_images`, `post_polls` y `poll_options` se escuchan solo para los IDs visibles, con un máximo de 100 IDs por filtro;
 - `post_comments` se escucha exclusivamente mientras está abierta la pantalla de comentarios;
 - likes, bookmarks, votos y likes de comentarios mantienen actualización optimista y rollback; los triggers actualizan las filas agregadas (`posts`, `post_comments` o `poll_options`) que luego emiten la invalidación;
@@ -151,10 +162,9 @@ npm run test
 
 ## Deuda técnica priorizada
 
-1. Generar y versionar los tipos de Supabase desde el schema real; tipar `createClient<Database>` y eliminar DTO manual que replique tablas.
-2. Extraer subcomponentes y lógica de `MapScreen`, `OnboardingScreen`, `MessageBubble` y `DiscoverDetailScreen` cuando se modifiquen; son los hotspots visuales restantes.
-3. Añadir pruebas de integración de los hooks de aplicación y repositories del feed. Las pruebas actuales cubren principalmente dominio determinista y parsing de eventos realtime.
-4. Medir el coste real de hidratación por página antes de consolidar lecturas en una función SQL/RPC o migrar señales de Postgres Changes a Broadcast. La separación actual permite hacerlo sin modificar el contrato de UI.
+1. Extraer subcomponentes y lógica de `MapScreen`, `OnboardingScreen`, `MessageBubble` y `DiscoverDetailScreen` cuando se modifiquen; son los hotspots visuales restantes.
+2. Añadir pruebas de integración de los hooks de aplicación y repositories del feed. Las pruebas actuales cubren principalmente dominio determinista y parsing de eventos realtime.
+3. Medir el coste real de hidratación por página antes de consolidar lecturas en una función SQL/RPC o migrar señales de Postgres Changes a Broadcast. La separación actual permite hacerlo sin modificar el contrato de UI.
 
 ## Checklist para nuevas features
 

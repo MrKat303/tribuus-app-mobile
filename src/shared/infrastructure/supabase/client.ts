@@ -4,13 +4,14 @@ import { AppState, type AppStateStatus, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
 import { minimumRuntimeConfiguration } from '@/config/runtime';
+import type { Database } from '@/shared/infrastructure/supabase/database.types';
 
 const supabaseConfiguration = minimumRuntimeConfiguration.configuration ?? {
   supabasePublishableKey: 'configuration-unavailable',
   supabaseUrl: 'http://127.0.0.1:54321',
 };
 
-export const supabase = createClient(supabaseConfiguration.supabaseUrl, supabaseConfiguration.supabasePublishableKey, {
+export const supabase = createClient<Database>(supabaseConfiguration.supabaseUrl, supabaseConfiguration.supabasePublishableKey, {
   auth: {
     ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
     autoRefreshToken: true,

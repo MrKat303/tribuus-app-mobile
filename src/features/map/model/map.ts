@@ -57,23 +57,9 @@ export function isCoordinateInViewport(
     && coordinate[1] <= bounds.ne[1] + latitudePadding;
 }
 
-export const INITIAL_EVENTS: MapEvent[] = [
-  { category: 'Servicio', communitySignals: 31, coordinate: [-70.6437, -33.4414], date: 'Disponible 24 h', freshnessScore: 0.72, id: 'punto-seguro', location: 'Metro Baquedano', personalizationScore: 0.68, qualityScore: 0.88, title: 'Punto de apoyo vecinal' },
-  { alertKind: 'Lluvia', category: 'Alerta', communitySignals: 19, coordinate: [-70.6571, -33.4522], date: 'Prevención · próximas 3 h', freshnessScore: 0.98, id: 'lluvia-alerta', location: 'Barrio Brasil', personalizationScore: 0.55, qualityScore: 0.86, title: 'Lluvia intensa' },
-  { alertKind: 'Incendio', category: 'Alerta', communitySignals: 42, coordinate: [-70.6703, -33.4388], date: 'Alerta activa · hace 12 min', freshnessScore: 0.94, id: 'incendio-alerta', location: 'Quinta Normal', personalizationScore: 0.7, qualityScore: 0.93, title: 'Foco de incendio reportado' },
-  { alertKind: 'Prevención', category: 'Alerta', communitySignals: 13, coordinate: [-70.6312, -33.4634], date: 'Precaución · hace 25 min', freshnessScore: 0.86, id: 'prevencion-alerta', location: 'Ñuñoa', personalizationScore: 0.62, qualityScore: 0.8, title: 'Cruce temporalmente bloqueado' },
-  { category: 'Café', communitySignals: 24, coordinate: [-70.6388, -33.4384], date: 'Abierto hasta 20:00', freshnessScore: 0.76, id: 'cafe-triciclo', location: 'Providencia', personalizationScore: 0.9, qualityScore: 0.91, title: 'Café Triciclo' },
-  { category: 'Restaurante', communitySignals: 38, coordinate: [-70.626, -33.4527], date: 'Abierto hasta 23:00', freshnessScore: 0.8, id: 'restaurante-popular', location: 'Plaza Ñuñoa', personalizationScore: 0.82, qualityScore: 0.94, title: 'La Popular Pizza' },
-  { category: 'Bar', communitySignals: 29, coordinate: [-70.6408, -33.4375], date: 'Abierto hasta 02:00', freshnessScore: 0.82, id: 'bar-barrio', location: 'Bellavista', personalizationScore: 0.78, qualityScore: 0.89, title: 'Bar del Barrio' },
-  { category: 'Evento', communitySignals: 27, coordinate: [-70.6629, -33.4474], date: 'Sáb, 10:30', freshnessScore: 0.9, id: 'yoga-parque', location: 'Parque de los Reyes', personalizationScore: 0.73, qualityScore: 0.87, title: 'Yoga al aire libre' },
-  { category: 'Evento', communitySignals: 44, coordinate: [-70.6354, -33.4491], date: 'Hoy, 18:30', freshnessScore: 0.98, id: 'intercambio', location: 'Parque Bustamante', personalizationScore: 0.88, qualityScore: 0.92, title: 'Intercambio de libros' },
-];
-
 export const PERMANENT_POI_CATEGORIES: PermanentPoiCategory[] = ['cerro', 'parque', 'museo', 'teatro', 'iglesia', 'biblioteca', 'monumento'];
 
 export const MAP_FILTERS: MapFilter[] = ['Todos', 'Café', 'Restaurante', 'Bar', 'Evento'];
-export const PLACE_REACTIONS = ['❤️', '🔥', '😋', '🎉', '⚠️'] as const;
-export const FRIENDS_NEARBY = ['VM', 'CR', 'SP', 'DM'];
 
 export function contentKindForEvent(event: MapEvent): MapContentKind {
   return event.category === 'Alerta' ? 'activity' : 'community-discovery';
