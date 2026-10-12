@@ -23,6 +23,10 @@ cargo test -p community-impact-tests
 stellar contract build
 ```
 
-Después de desplegar el WASM, ejecuta `initialize` con la cuenta emisora, configura el ID resultante como `STELLAR_IMPACT_CONTRACT_ID` y conserva `STELLAR_ISSUER_SECRET` únicamente como secreto de la Edge Function.
+El administrador se entrega al constructor durante el despliegue. No existe un paso de inicialización separado que otra cuenta pueda interceptar. Configura el ID resultante como `STELLAR_IMPACT_CONTRACT_ID` y conserva `STELLAR_ISSUER_SECRET` únicamente como secreto de la Edge Function.
+
+Cada despliegue debe registrar su red, hash del WASM, ID del contrato, transacción y commit de origen en `deployments/<red>.json`, siguiendo [deployments/README.md](deployments/README.md). El cambio de constructor exige desplegar un contrato nuevo; no apuntes la Edge Function al nuevo ID hasta verificar su transacción y configurar el emisor.
+
+La administración se rota en dos pasos (`propose_admin` y `accept_admin`). `admin_revoke` permite revocar una credencial aunque su emisor original haya sido suspendido o haya perdido su llave.
 
 La cuenta emisora necesita XLM solo para pagar las tarifas de red. Las personas usuarias nunca reciben, compran ni administran XLM desde Tribus.

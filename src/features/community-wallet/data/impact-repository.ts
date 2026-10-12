@@ -124,7 +124,7 @@ export async function loadCommunityImpact(userId: string, communityId: string): 
       .from('impact_actions')
       .select('id, actor_id, action_type_code, description, confirmation_note, status, occurred_at, submitted_at')
       .eq('community_id', communityId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'anchoring', 'anchor_failed'])
       .order('submitted_at', { ascending: true })
     : Promise.resolve({ data: [], error: null });
 

@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
@@ -17,6 +17,7 @@ import {
 import {
   type ImpactAction,
   type ImpactActionTypeCode,
+  type ImpactCredential,
   type ImpactRule,
   summarizeCommunityFund,
 } from '@/features/community-wallet/model/communityWallet';
@@ -40,9 +41,19 @@ const formatInitiativeDate = (value: string | null | undefined) => {
 };
 
 const statusCopy: Record<ImpactAction['status'], string> = {
+  anchor_failed: 'Reintento pendiente',
+  anchoring: 'Publicando en Stellar',
   pending: 'En revisión',
   rejected: 'No aprobado',
   validated: 'Aprobado',
+};
+
+const credentialStatusCopy: Record<ImpactCredential['status'], string> = {
+  active: 'Verificada',
+  anchor_failed: 'Reintento pendiente',
+  anchor_submitted: 'Confirmando en Stellar',
+  pending_anchor: 'Preparando registro',
+  revoked: 'Revocada',
 };
 
 const initiativeStatusCopy: Record<string, string> = {
@@ -154,12 +165,44 @@ function ActionRow({ action, rule }: { action: ImpactAction; rule?: ImpactRule }
   );
 }
 
+function CredentialRow({ credential, rule }: { credential: ImpactCredential; rule?: ImpactRule }) {
+  const { colors } = useAppAppearance();
+  const styles = useStyles();
+  const canOpenExplorer = credential.status === 'active' && Boolean(credential.transactionHash);
+  const openExplorer = () => {
+    if (!credential.transactionHash) return;
+    const network = credential.network === 'public' ? 'public' : 'testnet';
+    void Linking.openURL(`https://stellar.expert/explorer/${network}/tx/${credential.transactionHash}`);
+  };
+
+  return (
+    <Pressable
+      accessibilityHint={canOpenExplorer ? 'Abre la transacción en Stellar Expert' : undefined}
+      accessibilityRole={canOpenExplorer ? 'link' : undefined}
+      disabled={!canOpenExplorer}
+      onPress={openExplorer}
+      style={({ pressed }) => [styles.credentialRow, pressed && styles.pressed]}>
+      <View style={styles.credentialIcon}>
+        <AppIcon color={credential.status === 'active' ? colors.primaryDark : colors.textMuted} name="award" size={19} />
+      </View>
+      <View style={styles.credentialCopy}>
+        <AppText numberOfLines={1} variant="bodyStrong">{rule?.label ?? 'Aporte comunitario'}</AppText>
+        <AppText style={styles.credentialMeta} variant="caption">
+          {credential.points} puntos · {credentialStatusCopy[credential.status]}
+        </AppText>
+      </View>
+      {canOpenExplorer ? <AppIcon color={colors.primaryDark} name="external-link" size={16} /> : null}
+    </Pressable>
+  );
+}
+
 export function CommunityWalletScreen() {
   const router = useRouter();
   const { colors } = useAppAppearance();
   const { profile } = useProfile();
   const {
     actions,
+    credentials,
     fundEntries,
     fundError,
     fundSummary,
@@ -170,6 +213,7 @@ export function CommunityWalletScreen() {
     refresh,
     role,
     rules,
+    summary,
   } = useCommunityWallet();
   const styles = useStyles();
   const isReviewer = role === 'moderator' || role === 'admin';
@@ -259,6 +303,33 @@ export function CommunityWalletScreen() {
             <View style={styles.reviewCount}><AppText style={styles.reviewCountText} variant="caption">{pendingReview.length}</AppText></View>
           </Pressable>
         ) : null}
+
+        <View style={styles.impactPassport}>
+          <View style={styles.impactPassportHeader}>
+            <View>
+              <AppText style={styles.heroLabel} variant="eyebrow">Pasaporte de impacto</AppText>
+              <AppText style={styles.impactPoints} variant="heading">{summary.totalPoints} puntos</AppText>
+            </View>
+            <View style={styles.verifiedBadge}>
+              <AppIcon color={colors.primaryDark} name="shield" size={15} />
+              <AppText style={styles.verifiedBadgeText} variant="caption">{summary.activeCredentials} verificadas</AppText>
+            </View>
+          </View>
+          {summary.pendingActions ? (
+            <AppText style={styles.impactPending} variant="caption">
+              {summary.pendingActions} {summary.pendingActions === 1 ? 'aporte sigue' : 'aportes siguen'} en revisión o publicación.
+            </AppText>
+          ) : null}
+          {credentials.length ? (
+            <View style={styles.credentialList}>
+              {credentials.slice(0, 3).map((credential) => (
+                <CredentialRow credential={credential} key={credential.id} rule={ruleByCode.get(credential.actionTypeCode)} />
+              ))}
+            </View>
+          ) : (
+            <AppText style={styles.impactEmpty} variant="caption">Tus credenciales verificables aparecerán aquí cuando se apruebe un aporte.</AppText>
+          )}
+        </View>
 
         <View style={styles.sectionHeader}>
           <View>
@@ -392,6 +463,18 @@ const useStyles = makeThemedStyles((colors) => StyleSheet.create({
   reviewActionText: { flex: 1, fontSize: 13 },
   reviewCount: { alignItems: 'center', backgroundColor: colors.primarySoft, borderCurve: 'continuous', borderRadius: radii.pill, minWidth: 28, paddingHorizontal: 8, paddingVertical: 3 },
   reviewCountText: { color: colors.primaryDark, fontFamily: typography.bodySemiBold, fontVariant: ['tabular-nums'] },
+  impactPassport: { backgroundColor: colors.surface, borderColor: colors.border, borderCurve: 'continuous', borderRadius: radii.md, borderWidth: StyleSheet.hairlineWidth, marginTop: 18, padding: 14 },
+  impactPassportHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  impactPoints: { fontSize: 25, marginTop: 3 },
+  verifiedBadge: { alignItems: 'center', backgroundColor: colors.primarySoft, borderCurve: 'continuous', borderRadius: radii.pill, flexDirection: 'row', gap: 5, paddingHorizontal: 9, paddingVertical: 6 },
+  verifiedBadgeText: { color: colors.primaryDark, fontFamily: typography.bodySemiBold, fontSize: 9 },
+  impactPending: { color: colors.warning, fontSize: 10, marginTop: 8 },
+  impactEmpty: { color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 12 },
+  credentialList: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12 },
+  credentialRow: { alignItems: 'center', borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 58, paddingVertical: 9 },
+  credentialIcon: { alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: 10, height: 36, justifyContent: 'center', width: 36 },
+  credentialCopy: { flex: 1, marginLeft: 9 },
+  credentialMeta: { color: colors.textMuted, fontSize: 9, marginTop: 2 },
   errorCard: { alignItems: 'center', backgroundColor: colors.dangerSoft, borderCurve: 'continuous', borderRadius: radii.sm, flexDirection: 'row', gap: 8, marginTop: 10, padding: 12 },
   errorText: { flex: 1, fontSize: 11 },
   retryText: { color: colors.danger, fontFamily: typography.bodySemiBold },

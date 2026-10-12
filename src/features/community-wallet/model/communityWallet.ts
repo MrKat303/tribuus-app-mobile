@@ -5,8 +5,8 @@ export type ImpactActionTypeCode =
   | 'initiative_complete'
   | 'organization_validated';
 
-export type ImpactActionStatus = 'pending' | 'validated' | 'rejected';
-export type ImpactCredentialStatus = 'pending_anchor' | 'active' | 'anchor_failed' | 'revoked';
+export type ImpactActionStatus = 'pending' | 'anchoring' | 'anchor_failed' | 'validated' | 'rejected';
+export type ImpactCredentialStatus = 'pending_anchor' | 'anchor_submitted' | 'active' | 'anchor_failed' | 'revoked';
 export type CommunityRole = 'member' | 'moderator' | 'admin';
 
 export type InitiativeContributionKind = 'item' | 'time' | 'skill' | 'mixed';
@@ -113,7 +113,7 @@ export function summarizeImpact(actions: ImpactAction[], credentials: ImpactCred
   const activeCredentials = credentials.filter((credential) => credential.status === 'active');
   return {
     activeCredentials: activeCredentials.length,
-    pendingActions: actions.filter((action) => action.status === 'pending').length,
+    pendingActions: actions.filter((action) => ['pending', 'anchoring', 'anchor_failed'].includes(action.status)).length,
     totalPoints: activeCredentials.reduce((total, credential) => total + credential.points, 0),
   };
 }
